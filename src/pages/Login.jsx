@@ -74,7 +74,7 @@ export default function Login() {
       </div>
 
       {/* Login Card */}
-      <Card title="Masuk Akun" subtitle="Silakan masukkan nomor HP dan password Anda">
+      <Card title="Masuk Akun" subtitle="Masukkan nomor HP dan kata sandi Anda">
         <form onSubmit={handleLogin}>
           <Input
             label="Nomor WhatsApp / HP"
@@ -111,26 +111,20 @@ export default function Login() {
             color: 'var(--color-text-muted)',
             display: 'flex',
             flexDirection: 'column',
-            gap: '10px',
+            gap: '8px',
           }}
         >
           <div>
-            Belum punya akun?{' '}
+            Belum punya akun Customer?{' '}
             <Link
               to="/register-customer"
               style={{ color: 'var(--color-primary)', fontWeight: '700', textDecoration: 'none' }}
             >
-              Daftar Customer
+              Daftar Customer di Sini
             </Link>
           </div>
-          <div>
-            Ingin bermitra?{' '}
-            <Link
-              to="/register-kurir"
-              style={{ color: 'var(--color-secondary)', fontWeight: '700', textDecoration: 'none' }}
-            >
-              Daftar Jadi Kurir
-            </Link>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-dim)', marginTop: '4px' }}>
+            🛵 Akun mitra kurir didaftarkan langsung oleh Administrator.
           </div>
         </div>
       </Card>

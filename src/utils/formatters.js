@@ -35,11 +35,12 @@ export function sanitizePhone(phone) {
 }
 
 /**
- * Mengubah no HP menjadi format email sintetis untuk Supabase Auth gratis
+ * Mengubah no HP menjadi format email sintetis untuk Supabase Auth.
+ * Menggunakan domain standar '.com' agar lolos validasi TLD Supabase GoTrue Auth.
  */
 export function phoneToSyntheticEmail(phone) {
   const clean = sanitizePhone(phone);
-  return `${clean}@jastip.pelosok`;
+  return `${clean}@jastip.com`;
 }
 
 /**

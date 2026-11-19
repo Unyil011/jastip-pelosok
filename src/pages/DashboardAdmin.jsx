@@ -40,17 +40,23 @@ export default function DashboardAdmin() {
   const [manualMetode, setManualMetode] = useState('COD');
   const [creatingManual, setCreatingManual] = useState(false);
 
-  // Tab 3: Kurir Approval
-  const [pendingKurirs, setPendingKurirs] = useState([]);
+  // Tab 3: Manajemen Kurir (Daftar & Tambah Kurir Baru)
+  const [kurirList, setKurirList] = useState([]);
   const [jalurList, setJalurList] = useState([]);
   const [loadingKurir, setLoadingKurir] = useState(false);
-  const [selectedKurir, setSelectedKurir] = useState(null);
-  const [selectedJalurId, setSelectedJalurId] = useState('');
+  const [showAddKurirModal, setShowAddKurirModal] = useState(false);
+
+  // Form Tambah Kurir Baru oleh Admin
+  const [newKurirName, setNewKurirName] = useState('');
+  const [newKurirPhone, setNewKurirPhone] = useState('');
+  const [newKurirPassword, setNewKurirPassword] = useState('');
+  const [newKurirDana, setNewKurirDana] = useState('');
+  const [newKurirJalurId, setNewKurirJalurId] = useState('');
+  const [savingKurir, setSavingKurir] = useState(false);
 
   // Confirmation & Feedback BottomSheets
   const [actionLoading, setActionLoading] = useState(false);
   const [confirmOrderSheet, setConfirmOrderSheet] = useState({ open: false, order: null, action: '' });
-  const [confirmKurirSheet, setConfirmKurirSheet] = useState({ open: false, kurir: null, action: '' });
   const [feedbackSheet, setFeedbackSheet] = useState({ open: false, title: '', message: '' });
 
   // Load Tab Data
@@ -80,10 +86,10 @@ export default function DashboardAdmin() {
     setLoadingKurir(true);
     try {
       const [kurirs, jalurs] = await Promise.all([
-        adminService.getPendingKurirs(),
+        adminService.getAllKurirs(),
         villageService.getAllJalur(),
       ]);
-      setPendingKurirs(kurirs);
+      setKurirList(kurirs);
       setJalurList(jalurs);
     } catch (err) {
       console.error(err);
@@ -118,19 +124,16 @@ export default function DashboardAdmin() {
       scannerRef.current = scanner;
 
       await scanner.start(
-        { facingMode: 'environment' }, // Gunakan kamera belakang HP
+        { facingMode: 'environment' },
         {
           fps: 10,
           qrbox: { width: 250, height: 180 },
         },
         async (decodedText) => {
-          // Ketika barcode/QR berhasil dibaca
           stopScanner();
           handleResiDetected(decodedText);
         },
-        () => {
-          // Scanning frame error biasa saat mencari kode, abaikan
-        }
+        () => {}
       );
     } catch (err) {
       console.error('Kamera scanner error:', err);
@@ -175,7 +178,6 @@ export default function DashboardAdmin() {
     }
   };
 
-  // Terima Paket di Hub dari Scanner
   const handleTerimaDiHub = async () => {
     if (!matchedOrder) return;
     setActionLoading(true);
@@ -186,7 +188,7 @@ export default function DashboardAdmin() {
       setFeedbackSheet({
         open: true,
         title: 'Berhasil Masuk Hub! 📦',
-        message: `Paket resi ${matchedOrder.nomor_resi} berhasil diupdate statusnya jadi "Diterima di Hub". Kurir terkait sekarang bisa melihat paket ini.`,
+        message: `Paket resi ${matchedOrder.nomor_resi} berhasil diupdate statusnya jadi "Diterima di Hub". Kurir di jalur terkait dapat langsung melihat paket ini.`,
       });
       setMatchedOrder(null);
       setScannedResi('');
@@ -201,7 +203,6 @@ export default function DashboardAdmin() {
     }
   };
 
-  // Buat Order Manual Admin dari hasil Scan
   const handleCreateManualOrder = async (e) => {
     e.preventDefault();
     if (!manualCustomerId || !manualDesaId) {
@@ -230,8 +231,8 @@ export default function DashboardAdmin() {
 
       setFeedbackSheet({
         open: true,
-        title: 'Order Manual Berhasil Dibuat! 🚀',
-        message: `Order untuk resi ${scannedResi} telah tersimpan dan langsung berstatus "Diterima di Hub" siap antar.`,
+        title: 'Order Berhasil Dibuat! 🚀',
+        message: `Order resi ${scannedResi} telah tersimpan dan langsung berstatus "Diterima di Hub" siap antar.`,
       });
 
       setScanNotFound(false);
@@ -274,41 +275,51 @@ export default function DashboardAdmin() {
   };
 
   // ---------------------------------------------------------
-  // KURIR APPROVAL HANDLERS
+  // BUAT KURIR BARU OLEH ADMIN
   // ---------------------------------------------------------
-  const handleExecuteKurirApproval = async () => {
-    const { kurir, action } = confirmKurirSheet;
-    if (!kurir) return;
+  const handleCreateKurirSubmit = async (e) => {
+    e.preventDefault();
 
-    if (action === 'approved' && !selectedJalurId) {
+    if (!newKurirName.trim() || !newKurirPhone.trim() || !newKurirPassword.trim() || !newKurirJalurId) {
       setFeedbackSheet({
         open: true,
-        title: 'Pilih Jalur',
-        message: 'Harap tentukan jalur pengantaran untuk kurir ini sebelum menyetujui.',
+        title: 'Data Belum Lengkap',
+        message: 'Nama, No HP, Password, dan Jalur Penugasan wajib diisi!',
       });
       return;
     }
 
-    setActionLoading(true);
+    setSavingKurir(true);
     try {
-      if (action === 'approved') {
-        await adminService.approveKurir(kurir.id, selectedJalurId);
-      } else {
-        await adminService.rejectKurir(kurir.id);
-      }
+      await adminService.createKurirByAdmin({
+        name: newKurirName.trim(),
+        phone: newKurirPhone.trim(),
+        password: newKurirPassword.trim(),
+        danaNumber: newKurirDana.trim(),
+        jalurId: newKurirJalurId,
+      });
 
-      setConfirmKurirSheet({ open: false, kurir: null, action: '' });
-      setSelectedJalurId('');
+      setShowAddKurirModal(false);
+      setNewKurirName('');
+      setNewKurirPhone('');
+      setNewKurirPassword('');
+      setNewKurirDana('');
+      setNewKurirJalurId('');
       loadKurirData();
+
       setFeedbackSheet({
         open: true,
-        title: action === 'approved' ? 'Kurir Disetujui! 🎉' : 'Kurir Ditolak',
-        message: `Status kurir ${kurir.nama} telah diperbarui.`,
+        title: 'Kurir Berhasil Dibuat! 🎉',
+        message: 'Akun mitra kurir telah aktif (Approved). Kurir sudah bisa langsung login menggunakan No HP dan kata sandi tersebut.',
       });
     } catch (err) {
-      setFeedbackSheet({ open: true, title: 'Error', message: err.message });
+      setFeedbackSheet({
+        open: true,
+        title: 'Gagal Membuat Kurir',
+        message: err.message || 'Terjadi kesalahan saat membuat akun kurir.',
+      });
     } finally {
-      setActionLoading(false);
+      setSavingKurir(false);
     }
   };
 
@@ -320,7 +331,7 @@ export default function DashboardAdmin() {
           Panel Administrator ⚙️
         </h1>
         <p style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
-          Kelola konfirmasi order, scan paket fisik & persetujuan kurir
+          Kelola konfirmasi order, scan paket fisik & data mitra kurir
         </p>
       </div>
 
@@ -377,7 +388,7 @@ export default function DashboardAdmin() {
             boxShadow: currentTab === 'scan' ? '0 2px 4px rgba(20,35,28,0.12)' : 'none',
           }}
         >
-          📷 Scan Barcode
+          📷 Scan Resi
         </button>
 
         <button
@@ -399,7 +410,7 @@ export default function DashboardAdmin() {
             boxShadow: currentTab === 'kurir' ? '0 2px 4px rgba(20,35,28,0.12)' : 'none',
           }}
         >
-          👥 Kurir ({pendingKurirs.length})
+          🛵 Kurir ({kurirList.length})
         </button>
       </div>
 
@@ -658,23 +669,33 @@ export default function DashboardAdmin() {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 3: APPROVAL KURIR */}
+      {/* TAB 3: MANAJEMEN MITRA KURIR */}
       {/* ========================================================================= */}
       {currentTab === 'kurir' && (
         <div>
+          {/* Tombol Tambah Kurir Baru */}
+          <div style={{ marginBottom: '16px' }}>
+            <Button
+              variant="secondary"
+              onClick={() => setShowAddKurirModal(true)}
+            >
+              ➕ Buatkan Akun Kurir Baru
+            </Button>
+          </div>
+
           {loadingKurir ? (
             <SkeletonLoader type="list" count={3} />
-          ) : pendingKurirs.length === 0 ? (
+          ) : kurirList.length === 0 ? (
             <Card style={{ textAlign: 'center', padding: '36px 20px' }}>
               <div style={{ fontSize: '42px', marginBottom: '8px' }}>🛵</div>
-              <h4 style={{ fontSize: '16px', fontWeight: '700' }}>Tidak ada kurir pending</h4>
+              <h4 style={{ fontSize: '16px', fontWeight: '700' }}>Belum ada kurir terdaftar</h4>
               <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-                Semua permohonan pendaftaran mitra kurir telah diproses.
+                Klik tombol di atas untuk mendaftarkan mitra kurir baru.
               </p>
             </Card>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {pendingKurirs.map((kurir) => (
+              {kurirList.map((kurir) => (
                 <Card key={kurir.id} padding="16px">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
@@ -683,32 +704,15 @@ export default function DashboardAdmin() {
                         📱 {kurir.no_hp}
                       </p>
                       <p style={{ fontSize: '12.5px', color: 'var(--color-text-main)', marginTop: '4px' }}>
-                        💳 <b>Akun DANA:</b> {kurir.nomor_dana || '-'}
+                        💳 <b>DANA:</b> {kurir.nomor_dana || '-'}
+                      </p>
+                      <p style={{ fontSize: '12.5px', color: 'var(--color-primary-dark)', marginTop: '2px', fontWeight: '700' }}>
+                        🗺️ Jalur: {kurir.jalur?.nama_jalur || 'Belum Ditentukan'}
                       </p>
                     </div>
-                    <Badge variant="warning">Pending</Badge>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      onClick={() =>
-                        setConfirmKurirSheet({ open: true, kurir, action: 'rejected' })
-                      }
-                    >
-                      Tolak
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setSelectedKurir(kurir);
-                        setSelectedJalurId('');
-                        setConfirmKurirSheet({ open: true, kurir, action: 'approved' });
-                      }}
-                    >
-                      Setujui & Pilih Jalur
-                    </Button>
+                    <Badge variant={kurir.status_approval === 'approved' ? 'success' : 'warning'}>
+                      {kurir.status_approval === 'approved' ? 'Aktif' : kurir.status_approval}
+                    </Badge>
                   </div>
                 </Card>
               ))}
@@ -716,6 +720,75 @@ export default function DashboardAdmin() {
           )}
         </div>
       )}
+
+      {/* Bottom Sheet Buat Akun Kurir Baru */}
+      <BottomSheet
+        isOpen={showAddKurirModal}
+        onClose={() => setShowAddKurirModal(false)}
+        title="Daftarkan Mitra Kurir Baru"
+      >
+        <form onSubmit={handleCreateKurirSubmit} style={{ padding: '4px 0 16px 0' }}>
+          <Input
+            label="Nama Lengkap Kurir"
+            placeholder="Contoh: Rian Pratama"
+            value={newKurirName}
+            onChange={(e) => setNewKurirName(e.target.value)}
+            required
+          />
+
+          <Input
+            label="Nomor WhatsApp / HP Kurir"
+            type="tel"
+            placeholder="Contoh: 081234567890"
+            value={newKurirPhone}
+            onChange={(e) => setNewKurirPhone(e.target.value)}
+            helperText="Digunakan kurir untuk login"
+            required
+          />
+
+          <Input
+            label="Kata Sandi Awal"
+            type="password"
+            placeholder="Minimal 6 karakter"
+            value={newKurirPassword}
+            onChange={(e) => setNewKurirPassword(e.target.value)}
+            helperText="Berikan kata sandi ini kepada kurir bersangkutan"
+            required
+            minLength={6}
+          />
+
+          <Input
+            label="Nomor Akun DANA (Pencairan Ongkir)"
+            type="tel"
+            placeholder="Nomor DANA kurir"
+            value={newKurirDana}
+            onChange={(e) => setNewKurirDana(e.target.value)}
+            required
+          />
+
+          <Select
+            label="Jalur Penugasan"
+            placeholder="-- Pilih Jalur Penugasan --"
+            required
+            value={newKurirJalurId}
+            onChange={(e) => setNewKurirJalurId(e.target.value)}
+            options={jalurList.map((j) => ({
+              value: j.id,
+              label: j.nama_jalur,
+            }))}
+            helperText="Kurir ini akan mengantar paket di desa-desa dalam jalur ini"
+          />
+
+          <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+            <Button variant="outline" onClick={() => setShowAddKurirModal(false)}>
+              Batal
+            </Button>
+            <Button type="submit" variant="secondary" loading={savingKurir}>
+              Simpan & Aktifkan Kurir
+            </Button>
+          </div>
+        </form>
+      </BottomSheet>
 
       {/* Confirmation Sheet Order Action */}
       <ConfirmationSheet
@@ -728,65 +801,6 @@ export default function DashboardAdmin() {
         confirmVariant={confirmOrderSheet.action === 'dikonfirmasi' ? 'primary' : 'danger'}
         loading={actionLoading}
       />
-
-      {/* Bottom Sheet Kurir Approval with Jalur Selection */}
-      <BottomSheet
-        isOpen={confirmKurirSheet.open}
-        onClose={() => setConfirmKurirSheet({ open: false, kurir: null, action: '' })}
-        title={confirmKurirSheet.action === 'approved' ? 'Setujui Mitra Kurir' : 'Tolak Pendaftaran Kurir'}
-      >
-        <div style={{ padding: '8px 0 16px 0' }}>
-          {confirmKurirSheet.action === 'approved' ? (
-            <div>
-              <p style={{ fontSize: '13.5px', color: 'var(--color-text-main)', marginBottom: '14px' }}>
-                Tetapkan jalur penugasan untuk <b>{confirmKurirSheet.kurir?.nama}</b>:
-              </p>
-
-              <Select
-                label="Jalur Pengantaran"
-                placeholder="-- Pilih Jalur --"
-                required
-                value={selectedJalurId}
-                onChange={(e) => setSelectedJalurId(e.target.value)}
-                options={jalurList.map((j) => ({
-                  value: j.id,
-                  label: j.nama_jalur,
-                }))}
-                helperText="Kurir ini hanya akan melihat paket yang jalurnya sesuai"
-              />
-
-              <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
-                <Button
-                  variant="outline"
-                  onClick={() => setConfirmKurirSheet({ open: false, kurir: null, action: '' })}
-                >
-                  Batal
-                </Button>
-                <Button loading={actionLoading} onClick={handleExecuteKurirApproval}>
-                  Setujui Kurir
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div>
-              <p style={{ fontSize: '14px', color: 'var(--color-text-main)', marginBottom: '16px' }}>
-                Yakin ingin menolak pendaftaran mitra kurir dari <b>{confirmKurirSheet.kurir?.nama}</b>?
-              </p>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <Button
-                  variant="outline"
-                  onClick={() => setConfirmKurirSheet({ open: false, kurir: null, action: '' })}
-                >
-                  Batal
-                </Button>
-                <Button variant="danger" loading={actionLoading} onClick={handleExecuteKurirApproval}>
-                  Ya, Tolak Kurir
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </BottomSheet>
 
       {/* General Feedback Sheet */}
       <BottomSheet
