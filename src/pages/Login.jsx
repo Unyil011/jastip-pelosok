@@ -109,23 +109,15 @@ export default function Login() {
             textAlign: 'center',
             fontSize: '13px',
             color: 'var(--color-text-muted)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
           }}
         >
-          <div>
-            Belum punya akun Customer?{' '}
-            <Link
-              to="/register-customer"
-              style={{ color: 'var(--color-primary)', fontWeight: '700', textDecoration: 'none' }}
-            >
-              Daftar Customer di Sini
-            </Link>
-          </div>
-          <div style={{ fontSize: '12px', color: 'var(--color-text-dim)', marginTop: '4px' }}>
-            🛵 Akun mitra kurir didaftarkan langsung oleh Administrator.
-          </div>
+          Belum punya akun?{' '}
+          <Link
+            to="/register-customer"
+            style={{ color: 'var(--color-primary)', fontWeight: '700', textDecoration: 'none' }}
+          >
+            Daftar di sini
+          </Link>
         </div>
       </Card>
 
