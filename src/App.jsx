@@ -1,6 +1,8 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { ThemeProvider } from './hooks/useTheme';
+import ThemeToggle from './components/ThemeToggle';
 
 // Pages
 import Login from './pages/Login';
@@ -12,6 +14,28 @@ import OrderHistory from './pages/OrderHistory';
 import DashboardKurir from './pages/DashboardKurir';
 import DashboardAdmin from './pages/DashboardAdmin';
 import SkeletonLoader from './components/SkeletonLoader';
+
+/**
+ * Header Global Bar: Brand & Theme Toggle Switcher
+ */
+function TopHeader() {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        padding: '12px 16px 0 16px',
+        maxWidth: '480px',
+        margin: '0 auto',
+        width: '100%',
+        zIndex: 10,
+      }}
+    >
+      <ThemeToggle />
+    </div>
+  );
+}
 
 /**
  * Route Guard Berbasis Role
@@ -32,7 +56,6 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
   }
 
   if (allowedRoles.length > 0 && !allowedRoles.includes(profile.role)) {
-    // Jika role tidak diizinkan, kembalikan ke dashboard yang sesuai
     if (profile.role === 'customer') return <Navigate to="/dashboard-customer" replace />;
     if (profile.role === 'kurir') return <Navigate to="/dashboard-kurir" replace />;
     if (profile.role === 'admin') return <Navigate to="/dashboard-admin" replace />;
@@ -44,65 +67,68 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          {/* Public Auth Routes */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register-customer" element={<RegisterCustomer />} />
-          <Route path="/register-kurir" element={<RegisterKurir />} />
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <TopHeader />
+          <Routes>
+            {/* Public Auth Routes */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register-customer" element={<RegisterCustomer />} />
+            <Route path="/register-kurir" element={<RegisterKurir />} />
 
-          {/* Customer Routes */}
-          <Route
-            path="/dashboard-customer"
-            element={
-              <ProtectedRoute allowedRoles={['customer']}>
-                <DashboardCustomer />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/buat-order"
-            element={
-              <ProtectedRoute allowedRoles={['customer']}>
-                <CreateOrder />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/riwayat-order"
-            element={
-              <ProtectedRoute allowedRoles={['customer']}>
-                <OrderHistory />
-              </ProtectedRoute>
-            }
-          />
+            {/* Customer Routes */}
+            <Route
+              path="/dashboard-customer"
+              element={
+                <ProtectedRoute allowedRoles={['customer']}>
+                  <DashboardCustomer />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/buat-order"
+              element={
+                <ProtectedRoute allowedRoles={['customer']}>
+                  <CreateOrder />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/riwayat-order"
+              element={
+                <ProtectedRoute allowedRoles={['customer']}>
+                  <OrderHistory />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Kurir Routes */}
-          <Route
-            path="/dashboard-kurir"
-            element={
-              <ProtectedRoute allowedRoles={['kurir']}>
-                <DashboardKurir />
-              </ProtectedRoute>
-            }
-          />
+            {/* Kurir Routes */}
+            <Route
+              path="/dashboard-kurir"
+              element={
+                <ProtectedRoute allowedRoles={['kurir']}>
+                  <DashboardKurir />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Admin Routes */}
-          <Route
-            path="/dashboard-admin"
-            element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <DashboardAdmin />
-              </ProtectedRoute>
-            }
-          />
+            {/* Admin Routes */}
+            <Route
+              path="/dashboard-admin"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <DashboardAdmin />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

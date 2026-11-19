@@ -31,7 +31,7 @@ export default function Card({
         return 'var(--color-bg-elevated)';
       case 'raised':
       default:
-        return 'linear-gradient(145deg, #f7faf9 0%, var(--color-bg-card) 100%)';
+        return 'var(--color-bg-card-grad)';
     }
   };
 
@@ -42,12 +42,12 @@ export default function Card({
         background: getBackground(),
         boxShadow: getShadow(),
         borderRadius: 'var(--radius-lg)',
-        border: '1px solid rgba(255, 255, 255, 0.7)',
+        border: '1px solid var(--color-border-subtle)',
         padding: padding,
         marginBottom: '16px',
         position: 'relative',
         cursor: onClick ? 'pointer' : 'default',
-        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+        transition: 'transform 0.15s ease, box-shadow 0.15s ease, background 0.25s ease',
         ...style,
       }}
       {...props}
@@ -60,7 +60,7 @@ export default function Card({
             justifyContent: 'space-between',
             marginBottom: '12px',
             paddingBottom: '8px',
-            borderBottom: '1px solid rgba(82, 99, 90, 0.12)',
+            borderBottom: '1px solid var(--color-border-subtle)',
           }}
         >
           <div>
