@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { useAuth } from '../hooks/useAuth';
+import { getFriendlyErrorMessage } from '../utils/errorHandler';
 import Card from '../components/Card';
 import Input from '../components/Input';
 import Button from '../components/Button';
@@ -36,7 +37,7 @@ export default function Login() {
         navigate('/dashboard-admin');
       }
     } catch (err) {
-      setSheetMessage(err.message || 'Terjadi kesalahan saat masuk.');
+      setSheetMessage(getFriendlyErrorMessage(err));
       setSheetOpen(true);
     } finally {
       setLoading(false);

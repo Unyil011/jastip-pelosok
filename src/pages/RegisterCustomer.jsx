@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { villageService } from '../services/villageService';
 import { useAuth } from '../hooks/useAuth';
+import { getFriendlyErrorMessage } from '../utils/errorHandler';
 import Card from '../components/Card';
 import Input from '../components/Input';
 import Select from '../components/Select';
@@ -111,7 +112,7 @@ export default function RegisterCustomer() {
       await refreshProfile();
       navigate('/dashboard-customer');
     } catch (err) {
-      showError(err.message || 'Gagal mendaftarkan akun. Silakan periksa kembali data Anda.');
+      showError(getFriendlyErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
