@@ -75,8 +75,8 @@ export default function App() {
             {/* Public Auth Routes */}
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
-            <Route path="/register-customer" element={<RegisterCustomer />} />
-            <Route path="/register-kurir" element={<RegisterKurir />} />
+            <Route path="/register-customer" element={<Navigate to="/login" replace />} />
+            <Route path="/register-kurir" element={<Navigate to="/login" replace />} />
 
             {/* Customer Routes */}
             <Route

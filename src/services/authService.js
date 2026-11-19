@@ -1,72 +1,114 @@
 import { supabase } from '../lib/supabaseClient';
 import { phoneToSyntheticEmail, sanitizePhone } from '../utils/formatters';
 
+/**
+ * Cek apakah profil customer sudah lengkap data alamat & kontak WA-nya
+ */
+export function isCustomerProfileComplete(profile) {
+  if (!profile) return false;
+  // Wajib memiliki nomor HP (minimal 10 digit) dan alamat yang valid
+  const hasPhone = !!(profile.no_hp && profile.no_hp.trim().length >= 10);
+  const hasAddress = !!(profile.alamat && profile.alamat.trim().length >= 8);
+  return hasPhone && hasAddress;
+}
+
 export const authService = {
   /**
-   * Registrasi Customer (Langsung Approved)
+   * Login menggunakan Google OAuth (Pilihan Utama Customer)
    */
-  async registerCustomer({ name, phone, password, address }) {
-    const cleanPhone = sanitizePhone(phone);
-    const email = phoneToSyntheticEmail(cleanPhone);
-
-    // 1. Buat user di Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
+  async loginWithGoogle() {
+    const redirectUrl = `${window.location.origin}/dashboard-customer`;
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: redirectUrl,
+      },
     });
 
-    if (authError) throw authError;
-    const user = authData.user;
-    if (!user) throw new Error('Gagal membuat kredensial akun.');
-
-    // 2. Simpan profil ke public.users
-    const { error: profileError } = await supabase.from('users').insert({
-      id: user.id,
-      nama: name,
-      no_hp: cleanPhone,
-      role: 'customer',
-      status_approval: 'approved',
-      alamat: address,
-    });
-
-    if (profileError) throw profileError;
-    return user;
+    if (error) throw error;
+    return data;
   },
 
   /**
-   * Registrasi Kurir (Status Approval: pending & langsung sign out)
+   * Memastikan data profil user ada di tabel public.users.
+   * Dipanggil otomatis saat OAuth berhasil login pertama kali.
    */
-  async registerKurir({ name, phone, password, danaNumber }) {
-    const cleanPhone = sanitizePhone(phone);
-    const email = phoneToSyntheticEmail(cleanPhone);
+  async ensureUserProfile(user) {
+    if (!user) return null;
 
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-    });
+    try {
+      // 1. Cek apakah record profil sudah ada
+      const { data: existingProfile, error: fetchError } = await supabase
+        .from('users')
+        .select('id, nama, no_hp, role, status_approval, jalur_id, alamat, nomor_dana')
+        .eq('id', user.id)
+        .maybeSingle();
 
-    if (authError) throw authError;
-    const user = authData.user;
-    if (!user) throw new Error('Gagal membuat kredensial akun.');
+      if (existingProfile) {
+        return existingProfile;
+      }
 
-    const { error: profileError } = await supabase.from('users').insert({
-      id: user.id,
-      nama: name,
-      no_hp: cleanPhone,
-      role: 'kurir',
-      status_approval: 'pending',
-      nomor_dana: danaNumber,
-    });
+      // 2. Jika belum ada (pengguna baru via Google), buat profil customer default
+      const defaultName =
+        user.user_metadata?.full_name ||
+        user.user_metadata?.name ||
+        (user.email ? user.email.split('@')[0] : 'Customer');
 
-    if (profileError) throw profileError;
+      const newProfile = {
+        id: user.id,
+        nama: defaultName,
+        no_hp: user.user_metadata?.phone || null,
+        role: 'customer',
+        status_approval: 'approved',
+        alamat: null,
+      };
 
-    // Logout paksa agar kurir pending tidak bisa langsung akses
-    await supabase.auth.signOut();
-    return true;
+      const { data: createdProfile, error: insertError } = await supabase
+        .from('users')
+        .insert(newProfile)
+        .select('id, nama, no_hp, role, status_approval, jalur_id, alamat, nomor_dana')
+        .single();
+
+      if (insertError) {
+        console.warn('Perhatian saat menyimpan profil pengguna baru:', insertError.message);
+        return newProfile;
+      }
+
+      return createdProfile;
+    } catch (err) {
+      console.error('Error saat memastikan profil user:', err);
+      return null;
+    }
   },
 
   /**
-   * Login & Validasi Role / Approval Kurir
+   * Memperbarui data profil & alamat lengkap customer
+   */
+  async updateCustomerProfile(userId, { name, phone, address, jalurId }) {
+    const cleanPhone = sanitizePhone(phone);
+    const updates = {
+      nama: name.trim(),
+      no_hp: cleanPhone,
+      alamat: address.trim(),
+    };
+
+    if (jalurId) {
+      updates.jalur_id = jalurId;
+    }
+
+    const { data, error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', userId)
+      .select('id, nama, no_hp, role, status_approval, jalur_id, alamat, nomor_dana')
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Login Petugas / Kurir (menggunakan Nomor HP / Email dan Kata Sandi)
    */
   async login({ phone, password }) {
     const cleanPhone = sanitizePhone(phone);
@@ -123,13 +165,6 @@ export const authService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    const { data: profile, error } = await supabase
-      .from('users')
-      .select('id, nama, no_hp, role, status_approval, jalur_id, alamat, nomor_dana')
-      .eq('id', user.id)
-      .single();
-
-    if (error) return null;
-    return profile;
+    return await this.ensureUserProfile(user);
   },
 };

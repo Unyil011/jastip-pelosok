@@ -13,7 +13,14 @@ import SkeletonLoader from '../components/SkeletonLoader';
 
 export default function CreateOrder() {
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, isProfileComplete } = useAuth();
+
+  // Guard: Jika data profil belum lengkap, paksa kembali ke dashboard customer untuk melengkapi data
+  useEffect(() => {
+    if (profile && profile.role === 'customer' && !isProfileComplete) {
+      navigate('/dashboard-customer', { replace: true });
+    }
+  }, [profile, isProfileComplete, navigate]);
 
   // State Form
   const [jenisBarang, setJenisBarang] = useState('paket_ekspedisi'); // 'paket_ekspedisi' | 'titip_beli'
