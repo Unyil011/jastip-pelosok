@@ -124,24 +124,7 @@ export default function RegisterCustomer() {
 
   return (
     <div className="app-container-no-nav">
-      <div style={{ marginBottom: '16px' }}>
-        <Link
-          to="/login"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            fontSize: '13.5px',
-            fontWeight: '600',
-            color: 'var(--color-primary)',
-            textDecoration: 'none',
-          }}
-        >
-          ← Kembali ke Login
-        </Link>
-      </div>
-
-      <div style={{ textAlign: 'center', marginBottom: '18px' }}>
+      <div style={{ textAlign: 'center', marginBottom: '18px', marginTop: '10px' }}>
         <h1 style={{ fontSize: '22px', fontWeight: '800', color: 'var(--color-primary-dark)' }}>
           Daftar Customer Baru
         </h1>
@@ -164,7 +147,7 @@ export default function RegisterCustomer() {
 
             <Input
               label="Nama Lengkap"
-              placeholder="Contoh: Rival Santoso"
+              placeholder="Contoh: Ramon"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
