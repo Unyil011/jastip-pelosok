@@ -48,6 +48,7 @@ export default function DashboardCustomer() {
   const [fetchingGps, setFetchingGps] = useState(false);
   const [manualCoordMode, setManualCoordMode] = useState(false);
   const [pastedMapText, setPastedMapText] = useState('');
+  const [mapParseStatus, setMapParseStatus] = useState(null); // 'success' | 'shortlink' | 'error' | null
 
   // State Kalkulator Ongkir Cepat
   const [calcDesaId, setCalcDesaId] = useState('');
@@ -180,6 +181,7 @@ export default function DashboardCustomer() {
         const lng = position.coords.longitude;
         setLatitude(lat);
         setLongitude(lng);
+        setMapParseStatus('success');
         setFetchingGps(false);
       },
       (error) => {
@@ -202,20 +204,76 @@ export default function DashboardCustomer() {
   // Handler Parse Link atau Teks Koordinat Google Maps
   const handleParseMapText = (text) => {
     setPastedMapText(text);
-    if (!text) return;
-
-    const matchSimple = text.match(/(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)/);
-    if (matchSimple) {
-      setLatitude(parseFloat(matchSimple[1]));
-      setLongitude(parseFloat(matchSimple[2]));
+    if (!text || !text.trim()) {
+      setMapParseStatus(null);
       return;
     }
 
-    const matchUrl = text.match(/[@?&]q?=?(-?\d+\.\d+)[,/](-?\d+\.\d+)/);
-    if (matchUrl) {
-      setLatitude(parseFloat(matchUrl[1]));
-      setLongitude(parseFloat(matchUrl[2]));
+    const trimmed = text.trim();
+
+    // 1. Cek apakah link pendek Google Maps (maps.app.goo.gl atau goo.gl/maps)
+    // Link pendek dari tombol 'Bagikan' di aplikasi Maps TIDAK memuat angka koordinat di dalam URL-nya
+    if (trimmed.includes('maps.app.goo.gl') || trimmed.includes('goo.gl/maps')) {
+      setMapParseStatus('shortlink');
+      return;
     }
+
+    // 2. Format Pecahan Derajat / DMS (e.g. 7°28'52.4"S 107°31'52.3"E)
+    const dmsRegex = /(\d+)[°\s]+(\d+)['\s]+([\d.]+)"?\s*([NSns])[,\s]+(\d+)[°\s]+(\d+)['\s]+([\d.]+)"?\s*([EWew])/;
+    const matchDms = trimmed.match(dmsRegex);
+    if (matchDms) {
+      const latDeg = parseFloat(matchDms[1]) + parseFloat(matchDms[2]) / 60 + parseFloat(matchDms[3]) / 3600;
+      const latVal = matchDms[4].toUpperCase() === 'S' ? -latDeg : latDeg;
+      const lngDeg = parseFloat(matchDms[5]) + parseFloat(matchDms[6]) / 60 + parseFloat(matchDms[7]) / 3600;
+      const lngVal = matchDms[8].toUpperCase() === 'W' ? -lngDeg : lngDeg;
+      setLatitude(parseFloat(latVal.toFixed(6)));
+      setLongitude(parseFloat(lngVal.toFixed(6)));
+      setMapParseStatus('success');
+      return;
+    }
+
+    // 3. Format URL Embed / Share Maps: !3d(-?[\d.]+)!4d(-?[\d.]+)
+    const embedRegex = /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/;
+    const matchEmbed = trimmed.match(embedRegex);
+    if (matchEmbed) {
+      setLatitude(parseFloat(matchEmbed[1]));
+      setLongitude(parseFloat(matchEmbed[2]));
+      setMapParseStatus('success');
+      return;
+    }
+
+    // 4. Format URL @latitude,longitude (e.g. google.com/maps/@-7.48123,107.53123)
+    const atRegex = /@(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)/;
+    const matchAt = trimmed.match(atRegex);
+    if (matchAt) {
+      setLatitude(parseFloat(matchAt[1]));
+      setLongitude(parseFloat(matchAt[2]));
+      setMapParseStatus('success');
+      return;
+    }
+
+    // 5. Format Parameter URL (q=, query=, ll=, destination=)
+    const paramRegex = /[?&](?:q|query|ll|destination)=(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)/;
+    const matchParam = trimmed.match(paramRegex);
+    if (matchParam) {
+      setLatitude(parseFloat(matchParam[1]));
+      setLongitude(parseFloat(matchParam[2]));
+      setMapParseStatus('success');
+      return;
+    }
+
+    // 6. Format Angka Koordinat Standar (-7.xxxx, 107.xxxx atau spasi)
+    const simpleRegex = /(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)/;
+    const matchSimple = trimmed.match(simpleRegex);
+    if (matchSimple) {
+      setLatitude(parseFloat(matchSimple[1]));
+      setLongitude(parseFloat(matchSimple[2]));
+      setMapParseStatus('success');
+      return;
+    }
+
+    // Jika tidak ada pola koordinat yang ditemukan
+    setMapParseStatus('error');
   };
 
   // Handler Simpan Profil, Foto & Alamat
@@ -1242,12 +1300,79 @@ export default function DashboardCustomer() {
                       borderRadius: 'var(--radius-sm)',
                       border: '1px solid var(--color-border)',
                       fontSize: '12px',
-                      marginBottom: '10px',
+                      marginBottom: '8px',
                       background: 'var(--color-bg-base)',
                       color: 'var(--color-text-main)',
                       outline: 'none',
                     }}
                   />
+
+                  {/* Feedback Status Deteksi Link / Koordinat */}
+                  {mapParseStatus === 'success' && latitude && longitude && (
+                    <div
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'rgba(22, 163, 74, 0.1)',
+                        border: '1px solid rgba(22, 163, 74, 0.3)',
+                        color: '#15803d',
+                        fontSize: '11.5px',
+                        fontWeight: '700',
+                        marginBottom: '10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <span>✅</span>
+                      <span>Koordinat berhasil dikunci: <b>{Number(latitude).toFixed(5)}, {Number(longitude).toFixed(5)}</b></span>
+                    </div>
+                  )}
+
+                  {mapParseStatus === 'shortlink' && (
+                    <div
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'rgba(245, 158, 11, 0.12)',
+                        border: '1px solid rgba(245, 158, 11, 0.4)',
+                        color: '#b45309',
+                        fontSize: '11.5px',
+                        lineHeight: '1.45',
+                        marginBottom: '10px',
+                      }}
+                    >
+                      <div style={{ fontWeight: '800', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px' }}>
+                        <span>⚠️</span> Link Singkatan (maps.app.goo.gl)
+                      </div>
+                      <p style={{ margin: '0 0 6px 0', fontSize: '11px' }}>
+                        Link singkatan dari Google Maps tidak memuat angka koordinat di dalam tautannya, sehingga tidak bisa dibaca langsung.
+                      </p>
+                      <div style={{ padding: '6px 8px', background: 'rgba(255, 255, 255, 0.8)', borderRadius: '6px', color: '#78350f', fontSize: '11px' }}>
+                        <b>Cara cepat salin koordinat:</b><br />
+                        1. Buka titik rumah Anda di Google Maps.<br />
+                        2. <b>Tekan lama (2 detik)</b> di atap rumah sampai muncul pin merah 📍.<br />
+                        3. Di kotak pencarian atas akan muncul angka (contoh: <code>-7.4812, 107.5312</code>).<br />
+                        4. Salin angka tersebut dan tempel di sini, atau isi pada kotak di bawah.
+                      </div>
+                    </div>
+                  )}
+
+                  {mapParseStatus === 'error' && (
+                    <div
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'rgba(239, 68, 68, 0.08)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        color: '#b91c1c',
+                        fontSize: '11px',
+                        marginBottom: '10px',
+                      }}
+                    >
+                      ⚠️ Angka koordinat tidak ditemukan dalam teks yang Anda tempel. Masukkan angka langsung seperti <code>-7.4812, 107.5312</code> atau gunakan tombol <b>Ambil Titik Rumah</b> di atas.
+                    </div>
+                  )}
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                     <div>
@@ -1256,7 +1381,10 @@ export default function DashboardCustomer() {
                         type="text"
                         placeholder="-7.xxxxx"
                         value={latitude || ''}
-                        onChange={(e) => setLatitude(e.target.value)}
+                        onChange={(e) => {
+                          setLatitude(e.target.value);
+                          if (e.target.value && longitude) setMapParseStatus('success');
+                        }}
                         style={{
                           width: '100%',
                           padding: '6px 8px',
@@ -1274,7 +1402,10 @@ export default function DashboardCustomer() {
                         type="text"
                         placeholder="107.xxxxx"
                         value={longitude || ''}
-                        onChange={(e) => setLongitude(e.target.value)}
+                        onChange={(e) => {
+                          setLongitude(e.target.value);
+                          if (latitude && e.target.value) setMapParseStatus('success');
+                        }}
                         style={{
                           width: '100%',
                           padding: '6px 8px',
@@ -1289,14 +1420,14 @@ export default function DashboardCustomer() {
                   </div>
 
                   <div style={{ marginTop: '8px', fontSize: '10.5px', color: 'var(--color-text-muted)' }}>
-                    💡 <b>Tips:</b> Buka Google Maps di HP/laptop, tekan lama di titik atap rumah Anda, salin angka koordinatnya lalu tempelkan di sini.
+                    💡 <b>Tips:</b> Buka Google Maps di HP, tekan lama di titik atap rumah Anda, salin angka koordinatnya lalu tempelkan di sini.
                   </div>
                 </div>
               )}
 
-              {latitude && longitude ? (
+              {latitude && longitude && !isNaN(parseFloat(latitude)) && !isNaN(parseFloat(longitude)) ? (
                 <div style={{ fontSize: '12px', color: 'var(--color-text-main)', marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>📍 {Number(latitude).toFixed(5)}, {Number(longitude).toFixed(5)}</span>
+                  <span>📍 {parseFloat(latitude).toFixed(5)}, {parseFloat(longitude).toFixed(5)}</span>
                   <a
                     href={`https://www.google.com/maps?q=${latitude},${longitude}`}
                     target="_blank"
