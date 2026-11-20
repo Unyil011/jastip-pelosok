@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { useTheme } from '../hooks/useTheme';
 import { authService } from '../services/authService';
 import { villageService } from '../services/villageService';
 import { getFriendlyErrorMessage } from '../utils/errorHandler';
@@ -12,16 +11,15 @@ import Button from '../components/Button';
 import BottomNav from '../components/BottomNav';
 import BottomSheet from '../components/BottomSheet';
 import ConfirmationSheet from '../components/ConfirmationSheet';
-import ThemeToggle from '../components/ThemeToggle';
+import Sidebar from '../components/Sidebar';
 
 export default function DashboardCustomer() {
   const navigate = useNavigate();
   const { profile, refreshProfile, isProfileComplete } = useAuth();
-  const { isDark } = useTheme();
 
-  // BottomSheet State
+  // Sidebar & Modal States
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileSheetOpen, setProfileSheetOpen] = useState(false);
-  const [settingsSheetOpen, setSettingsSheetOpen] = useState(false);
   const [logoutSheetOpen, setLogoutSheetOpen] = useState(false);
   const [noticeSheetOpen, setNoticeSheetOpen] = useState(false);
   const [noticeMessage, setNoticeMessage] = useState('');
@@ -142,7 +140,77 @@ export default function DashboardCustomer() {
 
   return (
     <div className="app-container" style={{ paddingBottom: '90px' }}>
-      {/* Top Welcome Banner Card */}
+      {/* Top Bar Navigasi dengan Tombol Hamburger Sidebar */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '4px 0 14px 0',
+        }}
+      >
+        {/* Tombol Hamburger Sidebar */}
+        <button
+          onClick={() => setSidebarOpen(true)}
+          title="Buka Menu Pengaturan & Sidebar"
+          style={{
+            width: '42px',
+            height: '42px',
+            borderRadius: '12px',
+            background: 'var(--color-bg-card)',
+            border: '1px solid var(--color-border)',
+            boxShadow: 'var(--skeuo-button-raised)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '20px',
+            cursor: 'pointer',
+            color: 'var(--color-primary-dark)',
+            transition: 'transform 0.15s ease',
+          }}
+          onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.92)')}
+          onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+        >
+          ☰
+        </button>
+
+        {/* Brand App di Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <img
+            src="/logo.webp"
+            alt="Logo Jastip Pelosok"
+            style={{ width: '28px', height: '28px', borderRadius: '8px', objectFit: 'contain' }}
+          />
+          <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--color-primary-dark)', letterSpacing: '-0.3px' }}>
+            Jastip Pelosok
+          </span>
+        </div>
+
+        {/* Profil Trigger */}
+        <button
+          onClick={() => setSidebarOpen(true)}
+          title="Buka Profil & Pengaturan"
+          style={{
+            width: '38px',
+            height: '38px',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary) 100%)',
+            color: '#ffffff',
+            border: '2px solid rgba(255, 255, 255, 0.4)',
+            boxShadow: 'var(--skeuo-button-raised)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: '700',
+            fontSize: '15px',
+            cursor: 'pointer',
+          }}
+        >
+          {profile?.nama ? profile.nama.charAt(0).toUpperCase() : 'C'}
+        </button>
+      </div>
+
+      {/* Top Welcome Banner Card (Bersih & Rapi Tanpa Tombol yang Menumpuk) */}
       <Card
         style={{
           background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary-dark) 100%)',
@@ -152,96 +220,72 @@ export default function DashboardCustomer() {
           boxShadow: 'var(--skeuo-button-raised)',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <img
-              src="/logo.webp"
-              alt="Logo Jastip Pelosok"
-              style={{
-                width: '46px',
-                height: '46px',
-                borderRadius: '14px',
-                objectFit: 'contain',
-                background: 'rgba(255, 255, 255, 0.2)',
-                border: '1.5px solid rgba(255, 255, 255, 0.4)',
-                padding: '2px',
-                boxShadow: '0 4px 10px rgba(0, 0, 0, 0.15)',
-              }}
-            />
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+        <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
+          <img
+            src="/logo.webp"
+            alt="Logo Jastip Pelosok"
+            style={{
+              width: '50px',
+              height: '50px',
+              borderRadius: '16px',
+              objectFit: 'contain',
+              background: 'rgba(255, 255, 255, 0.2)',
+              border: '1.5px solid rgba(255, 255, 255, 0.4)',
+              padding: '2px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.18)',
+            }}
+          />
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.6px',
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                }}
+              >
+                Customer
+              </span>
+              {isProfileComplete ? (
                 <span
                   style={{
                     fontSize: '11px',
                     fontWeight: '700',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.6px',
-                    background: 'rgba(255, 255, 255, 0.2)',
+                    background: '#22c55e',
+                    color: '#ffffff',
                     padding: '2px 8px',
                     borderRadius: '999px',
                   }}
                 >
-                  Customer
+                  ✓ Alamat Lengkap
                 </span>
-                {isProfileComplete ? (
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: '700',
-                      background: '#22c55e',
-                      color: '#ffffff',
-                      padding: '2px 8px',
-                      borderRadius: '999px',
-                    }}
-                  >
-                    ✓ Alamat Lengkap
-                  </span>
-                ) : (
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: '700',
-                      background: '#f59e0b',
-                      color: '#ffffff',
-                      padding: '2px 8px',
-                      borderRadius: '999px',
-                    }}
-                  >
-                    ⚠️ Belum Lengkap
-                  </span>
-                )}
-              </div>
-
-              <h2 style={{ fontSize: '18px', fontWeight: '800', margin: '2px 0 0 0' }}>
-                Halo, {profile?.nama || 'Pelanggan'}! 👋
-              </h2>
-              <p style={{ fontSize: '12px', opacity: 0.9, marginTop: '2px' }}>
-                {profile?.no_hp ? `📱 WA: ${profile.no_hp}` : 'Nomor WhatsApp belum diisi'}
-              </p>
+              ) : (
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    background: '#f59e0b',
+                    color: '#ffffff',
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                  }}
+                >
+                  ⚠️ Belum Lengkap
+                </span>
+              )}
             </div>
-          </div>
 
-          {/* Tombol Pengaturan Baru (Menggantikan Tombol Keluar Langsung) */}
-          <button
-            onClick={() => setSettingsSheetOpen(true)}
-            style={{
-              background: 'rgba(255, 255, 255, 0.2)',
-              border: '1px solid rgba(255, 255, 255, 0.4)',
-              borderRadius: 'var(--radius-md)',
-              color: '#ffffff',
-              padding: '7px 12px',
-              fontSize: '12.5px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              backdropFilter: 'blur(4px)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <span>⚙️</span>
-            <span>Pengaturan</span>
-          </button>
+            <h2 style={{ fontSize: '19px', fontWeight: '800', margin: '2px 0 0 0' }}>
+              Halo, {profile?.nama || 'Pelanggan'}! 👋
+            </h2>
+            <p style={{ fontSize: '12.5px', opacity: 0.9, marginTop: '3px' }}>
+              {profile?.no_hp ? `📱 WA: ${profile.no_hp}` : 'Nomor WhatsApp belum diisi'}
+            </p>
+          </div>
         </div>
       </Card>
 
@@ -472,94 +516,13 @@ export default function DashboardCustomer() {
         </div>
       </BottomSheet>
 
-      {/* Bottom Sheet: Menu Pengaturan (Dark Mode, Alamat, Keluar) */}
-      <BottomSheet
-        isOpen={settingsSheetOpen}
-        onClose={() => setSettingsSheetOpen(false)}
-        title="Pengaturan"
-      >
-        <div style={{ padding: '8px 0 16px 0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Header Aplikasi di Settings */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingBottom: '12px', borderBottom: '1px solid rgba(82, 99, 90, 0.12)' }}>
-            <img
-              src="/logo.webp"
-              alt="Logo Jastip Pelosok"
-              style={{ width: '42px', height: '42px', borderRadius: '12px', objectFit: 'contain' }}
-            />
-            <div>
-              <h3 style={{ fontSize: '15px', fontWeight: '800', margin: 0, color: 'var(--color-primary-dark)' }}>
-                Jastip Pelosok
-              </h3>
-              <span style={{ fontSize: '11.5px', color: 'var(--color-text-muted)' }}>
-                Layanan Antar Paket Kec. Naringgul
-              </span>
-            </div>
-          </div>
-          {/* Pengaturan Tema (Dark/Light Mode) */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '14px 16px',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--color-bg-base)',
-              boxShadow: 'var(--skeuo-input-sunken)',
-            }}
-          >
-            <div>
-              <h4 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--color-text-main)', margin: 0 }}>
-                Tema Aplikasi
-              </h4>
-              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: '2px 0 0 0' }}>
-                Mode saat ini: {isDark ? '🌙 Mode Gelap' : '☀️ Mode Terang'}
-              </p>
-            </div>
-            <ThemeToggle />
-          </div>
-
-          {/* Opsi Ubah Alamat Pengiriman */}
-          <div
-            onClick={() => {
-              setSettingsSheetOpen(false);
-              setProfileSheetOpen(true);
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '14px 16px',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--color-bg-base)',
-              boxShadow: 'var(--skeuo-input-sunken)',
-              cursor: 'pointer',
-            }}
-          >
-            <div>
-              <h4 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--color-text-main)', margin: 0 }}>
-                🏡 Data Alamat Rumah
-              </h4>
-              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: '2px 0 0 0' }}>
-                {profile?.alamat ? 'Klik untuk memperbarui alamat' : 'Alamat belum diatur'}
-              </p>
-            </div>
-            <span style={{ fontSize: '16px', color: 'var(--color-primary)' }}>➔</span>
-          </div>
-
-          {/* Tombol Keluar / Logout */}
-          <div style={{ marginTop: '8px' }}>
-            <Button
-              variant="danger"
-              onClick={() => {
-                setSettingsSheetOpen(false);
-                setLogoutSheetOpen(true);
-              }}
-            >
-              🚪 Keluar dari Akun
-            </Button>
-          </div>
-        </div>
-      </BottomSheet>
+      {/* Drawer Sidebar Menu Samping (Pengaturan, Tema, Navigasi, Logout) */}
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onOpenAddressModal={() => setProfileSheetOpen(true)}
+        onTriggerLogout={() => setLogoutSheetOpen(true)}
+      />
 
       {/* Confirmation Sheet Logout */}
       <ConfirmationSheet
