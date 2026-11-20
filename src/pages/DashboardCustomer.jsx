@@ -319,32 +319,47 @@ export default function DashboardCustomer() {
           padding: '2px 4px',
         }}
       >
-        {/* Lokasi Rumah Pelanggan (Kiri) */}
+        {/* Sapaan Pengguna (Kiri) - Menggunakan Nama Google & Terupdate saat Profil Diisi */}
         <div
           onClick={() => setProfileSheetOpen(true)}
           style={{
             cursor: 'pointer',
             display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
+            flexDirection: 'column',
           }}
-          title="Klik untuk ubah alamat atau titik GPS rumah"
+          title="Klik untuk ubah profil, nama, atau alamat rumah"
         >
-          <span style={{ fontSize: '18px' }}>📍</span>
           <span
             style={{
-              fontSize: '15px',
-              fontWeight: '800',
+              fontSize: '16.5px',
+              fontWeight: '900',
               color: 'var(--color-text-main)',
+              letterSpacing: '-0.3px',
               maxWidth: '240px',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
             }}
           >
-            {getLocationLabel()}
+            Halo, {profile?.nama || 'Pelanggan'}! 👋
           </span>
-          <span style={{ fontSize: '13px', color: 'var(--color-primary)', fontWeight: '800' }}>▾</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginTop: '1px' }}>
+            <span style={{ fontSize: '11px' }}>📍</span>
+            <span
+              style={{
+                fontSize: '11.5px',
+                fontWeight: '600',
+                color: profile?.alamat ? 'var(--color-text-muted)' : '#f59e0b',
+                maxWidth: '220px',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {profile?.alamat ? getLocationLabel() : 'Atur alamat rumah'}
+            </span>
+            <span style={{ fontSize: '10px', color: 'var(--color-primary)', fontWeight: '700' }}>▾</span>
+          </div>
         </div>
 
         {/* Foto Profil Avatar (Kanan) -> Membuka Slide Drawer Pengaturan & Profil tempat Logo Jastip Pelosok berada */}
