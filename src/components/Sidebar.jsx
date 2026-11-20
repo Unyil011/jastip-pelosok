@@ -83,11 +83,11 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
               }}
             />
             <div>
-              <h3 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--color-primary-dark)', margin: 0 }}>
-                Pengaturan
+              <h3 style={{ fontSize: '15.5px', fontWeight: '800', color: 'var(--color-primary-dark)', margin: 0 }}>
+                Jastip Pelosok
               </h3>
               <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                Akun & Preferensi Aplikasi
+                Kecamatan Naringgul • v1.0
               </span>
             </div>
           </div>

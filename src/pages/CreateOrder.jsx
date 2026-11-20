@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { villageService } from '../services/villageService';
 import { orderService } from '../services/orderService';
@@ -17,6 +17,7 @@ import { authService } from '../services/authService';
 
 export default function CreateOrder() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { profile, isProfileComplete } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logoutSheetOpen, setLogoutSheetOpen] = useState(false);
@@ -29,7 +30,9 @@ export default function CreateOrder() {
   }, [profile, isProfileComplete, navigate]);
 
   // State Form
-  const [jenisBarang, setJenisBarang] = useState('paket_ekspedisi'); // 'paket_ekspedisi' | 'titip_beli'
+  const [jenisBarang, setJenisBarang] = useState(
+    location.state?.service === 'titip_beli' ? 'titip_beli' : 'paket_ekspedisi'
+  );
   const [jumlahBarang, setJumlahBarang] = useState(1);
   const [nomorResi, setNomorResi] = useState('');
   const [deskripsiBarang, setDeskripsiBarang] = useState('');

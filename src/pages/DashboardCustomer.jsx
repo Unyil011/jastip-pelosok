@@ -14,7 +14,6 @@ import BottomNav from '../components/BottomNav';
 import BottomSheet from '../components/BottomSheet';
 import ConfirmationSheet from '../components/ConfirmationSheet';
 import Sidebar from '../components/Sidebar';
-import TopBar from '../components/TopBar';
 
 export default function DashboardCustomer() {
   const navigate = useNavigate();
@@ -233,121 +232,423 @@ export default function DashboardCustomer() {
     }
   };
 
-  return (
-    <div className="app-container" style={{ paddingBottom: '90px', paddingTop: '8px' }}>
-      {/* 1. Top Bar Kapsul Melayang (Konsisten Menampilkan Logo & Foto Profil Pengguna) */}
-      <TopBar onOpenProfile={() => setSidebarOpen(true)} />
+  const getLocationLabel = () => {
+    if (!profile?.alamat) return 'Atur Lokasi Pengantaran';
+    const clean = profile.alamat.split('(')[0];
+    const parts = clean.split(',').map((p) => p.trim());
+    if (parts.length >= 3) {
+      return `${parts[0]}, ${parts[2].replace(/^Desa\s+/i, '')}`;
+    }
+    return parts[0] || 'Kec. Naringgul';
+  };
 
-      {/* 2. Banner Sambutan Hijau (Tanpa Foto Dobel, Menampilkan Maskot Antaran 🛵) */}
-      <Card
+  return (
+    <div className="app-container" style={{ paddingBottom: '90px', paddingTop: '12px' }}>
+      {/* 1. Header Minimalis & Clean (Sesuai Referensi AFTER: Lokasi di Kiri, Avatar Profil di Kanan) */}
+      <div
         style={{
-          background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary-dark) 100%)',
-          color: '#ffffff',
-          border: '1px solid rgba(255, 255, 255, 0.25)',
-          padding: '20px',
-          boxShadow: 'var(--skeuo-button-raised)',
-          marginBottom: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '18px',
+          padding: '2px 4px',
         }}
       >
-        <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-          {/* Foto Profil Pengguna */}
-          {profile?.foto_url ? (
-            <img
-              src={profile.foto_url}
-              alt={profile?.nama || 'Foto Profil'}
+        {/* Lokasi Pengantaran Pelanggan (Kiri) */}
+        <div
+          onClick={() => setProfileSheetOpen(true)}
+          style={{
+            cursor: 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+          title="Klik untuk ubah alamat atau titik GPS rumah"
+        >
+          <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', fontWeight: '600', letterSpacing: '0.4px' }}>
+            Lokasi Pengantaran
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
+            <span style={{ fontSize: '15px' }}>📍</span>
+            <span
               style={{
-                width: '58px',
-                height: '58px',
-                borderRadius: '50%',
-                objectFit: 'cover',
-                border: '2.5px solid #ffffff',
-                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.25)',
-              }}
-            />
-          ) : (
-            <div
-              style={{
-                width: '58px',
-                height: '58px',
-                borderRadius: '50%',
-                background: 'rgba(255, 255, 255, 0.22)',
-                border: '2.5px solid #ffffff',
-                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.2)',
-                backdropFilter: 'blur(6px)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '24px',
+                fontSize: '15px',
                 fontWeight: '800',
-                color: '#ffffff',
-              }}
-            >
-              {profile?.nama ? profile.nama.charAt(0).toUpperCase() : '👤'}
-            </div>
-          )}
-
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: '700',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.6px',
-                  background: 'rgba(255, 255, 255, 0.2)',
-                  padding: '2px 8px',
-                  borderRadius: '999px',
-                }}
-              >
-                Pelanggan Setia
-              </span>
-              {isProfileComplete ? (
-                <span
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: '700',
-                    background: '#22c55e',
-                    color: '#ffffff',
-                    padding: '2px 8px',
-                    borderRadius: '999px',
-                  }}
-                >
-                  ✓ Alamat Siap
-                </span>
-              ) : (
-                <span
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: '700',
-                    background: '#f59e0b',
-                    color: '#ffffff',
-                    padding: '2px 8px',
-                    borderRadius: '999px',
-                  }}
-                >
-                  ⚠️ Belum Lengkap
-                </span>
-              )}
-            </div>
-
-            <h2
-              style={{
-                fontSize: '19px',
-                fontWeight: '800',
-                margin: '2px 0 0 0',
+                color: 'var(--color-text-main)',
+                maxWidth: '220px',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
               }}
             >
-              Halo, {profile?.nama || 'Pelanggan'}! 👋
-            </h2>
-            <p style={{ fontSize: '12px', opacity: 0.9, marginTop: '3px' }}>
-              {profile?.alamat ? `📍 ${profile.alamat.split('(')[0]}` : 'Alamat rumah belum diatur'}
-            </p>
+              {getLocationLabel()}
+            </span>
+            <span style={{ fontSize: '12px', color: 'var(--color-primary)', fontWeight: '700' }}>▾</span>
           </div>
         </div>
-      </Card>
+
+        {/* Foto Profil Avatar (Kanan) -> Membuka Slide Drawer Pengaturan & Profil tempat Logo Jastip Pelosok berada */}
+        <button
+          onClick={() => setSidebarOpen(true)}
+          title="Buka Menu Akun & Profil Jastip Pelosok"
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            position: 'relative',
+          }}
+        >
+          {profile?.foto_url ? (
+            <img
+              src={profile.foto_url}
+              alt={profile?.nama || 'Profil'}
+              style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: '2px solid var(--color-primary)',
+                boxShadow: 'var(--skeuo-button-raised)',
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary) 100%)',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '18px',
+                fontWeight: '800',
+                boxShadow: 'var(--skeuo-button-raised)',
+                border: '2px solid rgba(255,255,255,0.6)',
+              }}
+            >
+              {profile?.nama ? profile.nama.charAt(0).toUpperCase() : '👤'}
+            </div>
+          )}
+          {/* Dot Status Hijau */}
+          <span
+            style={{
+              position: 'absolute',
+              bottom: '1px',
+              right: '1px',
+              width: '11px',
+              height: '11px',
+              borderRadius: '50%',
+              background: '#22c55e',
+              border: '2px solid var(--color-bg-base)',
+            }}
+          />
+        </button>
+      </div>
+
+      {/* 2. Hero Banner Solusi Jastip Pelosok (Inspirasi "YOUR SOLUTION, ONE TAP AWAY!") */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, #064e3b 0%, #047857 60%, #059669 100%)',
+          borderRadius: '20px',
+          padding: '20px 18px',
+          color: '#ffffff',
+          position: 'relative',
+          overflow: 'hidden',
+          marginBottom: '20px',
+          boxShadow: '0 8px 24px rgba(6, 95, 70, 0.28), var(--skeuo-button-raised)',
+          border: '1px solid rgba(255, 255, 255, 0.18)',
+        }}
+      >
+        {/* Dekorasi visual lingkaran */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '-30px',
+            right: '-30px',
+            width: '130px',
+            height: '130px',
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.08)',
+            pointerEvents: 'none',
+          }}
+        />
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+          <div style={{ flex: 1, zIndex: 1 }}>
+            <span
+              style={{
+                fontSize: '10.5px',
+                fontWeight: '800',
+                letterSpacing: '1px',
+                textTransform: 'uppercase',
+                background: 'rgba(255, 255, 255, 0.22)',
+                padding: '3px 9px',
+                borderRadius: '999px',
+                display: 'inline-block',
+                marginBottom: '8px',
+              }}
+            >
+              Solusi Antaran Desa
+            </span>
+            <h3
+              style={{
+                fontSize: '18px',
+                fontWeight: '800',
+                margin: '0 0 6px 0',
+                lineHeight: '1.25',
+                color: '#ffffff',
+              }}
+            >
+              Belanja Online Sampai Depan Pintu Rumah! 🛵
+            </h3>
+            <p
+              style={{
+                fontSize: '12px',
+                opacity: 0.9,
+                margin: '0 0 14px 0',
+                lineHeight: '1.4',
+              }}
+            >
+              Jemput paket ekspedisi & belanjaan pasar ke 11 desa se-Kecamatan Naringgul.
+            </p>
+
+            <button
+              onClick={() => navigate('/buat-order')}
+              style={{
+                background: '#ffffff',
+                color: '#064e3b',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '999px',
+                fontSize: '12.5px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.18)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'transform 0.15s ease',
+              }}
+              onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.95)')}
+              onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+            >
+              <span>Buat Order Baru</span>
+              <span>➔</span>
+            </button>
+          </div>
+
+          <div
+            style={{
+              fontSize: '52px',
+              filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.22))',
+              zIndex: 1,
+            }}
+          >
+            📦
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Kategori Layanan (Inspirasi "Service Categories" pada Gambar AFTER) */}
+      <div style={{ marginBottom: '22px' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '12px',
+            padding: '0 2px',
+          }}
+        >
+          <h3 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--color-text-main)', margin: 0 }}>
+            Kategori Layanan
+          </h3>
+          <span
+            onClick={() => navigate('/buat-order')}
+            style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-primary)', cursor: 'pointer' }}
+          >
+            Pesan Layanan ➔
+          </span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          {/* Layanan 1: Paket Ekspedisi */}
+          <div
+            onClick={() => navigate('/buat-order', { state: { service: 'paket_ekspedisi' } })}
+            style={{
+              padding: '14px',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--color-bg-card)',
+              border: '1px solid var(--color-border)',
+              boxShadow: 'var(--skeuo-button-raised)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              transition: 'transform 0.15s ease',
+            }}
+            onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.97)')}
+            onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+          >
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
+                background: 'rgba(34, 197, 94, 0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px',
+              }}
+            >
+              📦
+            </div>
+            <div>
+              <h4 style={{ fontSize: '13px', fontWeight: '800', margin: 0, color: 'var(--color-text-main)' }}>
+                Paket Ekspedisi
+              </h4>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                Jemput resi kurir
+              </span>
+            </div>
+          </div>
+
+          {/* Layanan 2: Titip Barang */}
+          <div
+            onClick={() => navigate('/buat-order', { state: { service: 'titip_beli' } })}
+            style={{
+              padding: '14px',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--color-bg-card)',
+              border: '1px solid var(--color-border)',
+              boxShadow: 'var(--skeuo-button-raised)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              transition: 'transform 0.15s ease',
+            }}
+            onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.97)')}
+            onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+          >
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
+                background: 'rgba(59, 130, 246, 0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px',
+              }}
+            >
+              🛍️
+            </div>
+            <div>
+              <h4 style={{ fontSize: '13px', fontWeight: '800', margin: 0, color: 'var(--color-text-main)' }}>
+                Titip Barang
+              </h4>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                Belanjaan pasar/toko
+              </span>
+            </div>
+          </div>
+
+          {/* Layanan 3: Jadwal Antaran */}
+          <div
+            onClick={() => {
+              const el = document.getElementById('jadwal-antaran-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            style={{
+              padding: '14px',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--color-bg-card)',
+              border: '1px solid var(--color-border)',
+              boxShadow: 'var(--skeuo-button-raised)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              transition: 'transform 0.15s ease',
+            }}
+            onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.97)')}
+            onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+          >
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
+                background: 'rgba(245, 158, 11, 0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px',
+              }}
+            >
+              🕒
+            </div>
+            <div>
+              <h4 style={{ fontSize: '13px', fontWeight: '800', margin: 0, color: 'var(--color-text-main)' }}>
+                Jadwal Kurir
+              </h4>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                Pagi & siang hari
+              </span>
+            </div>
+          </div>
+
+          {/* Layanan 4: Chat Admin Hub */}
+          <a
+            href="https://wa.me/6281234567890?text=Halo%20Admin%20Jastip%20Pelosok,%20saya%20mau%20tanya%20seputar%20paket"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              padding: '14px',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--color-bg-card)',
+              border: '1px solid var(--color-border)',
+              boxShadow: 'var(--skeuo-button-raised)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              textDecoration: 'none',
+              transition: 'transform 0.15s ease',
+            }}
+            onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.97)')}
+            onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+          >
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
+                background: 'rgba(37, 211, 102, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px',
+              }}
+            >
+              💬
+            </div>
+            <div>
+              <h4 style={{ fontSize: '13px', fontWeight: '800', margin: 0, color: 'var(--color-text-main)' }}>
+                Bantuan Admin
+              </h4>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                WhatsApp Hub Pelosok
+              </span>
+            </div>
+          </a>
+        </div>
+      </div>
 
       {/* Peringatan Jika Data Alamat Belum Lengkap */}
       {!isProfileComplete && (
@@ -504,32 +805,34 @@ export default function DashboardCustomer() {
       )}
 
       {/* 4. Jadwal Operasional Hub & Info Antaran Desa */}
-      <Card
-        title="Jadwal Antaran Hub Kecamatan"
-        subtitle="Waktu sortir dan keberangkatan kurir ke desa"
-        style={{ marginBottom: '16px' }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '18px' }}>🕒</span>
-            <div>
-              <b>Sortir Paket Masuk:</b> Pukul 08.00 – 10.00 WIB
+      <div id="jadwal-antaran-section">
+        <Card
+          title="Jadwal Antaran Hub Kecamatan"
+          subtitle="Waktu sortir dan keberangkatan kurir ke desa"
+          style={{ marginBottom: '16px' }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '18px' }}>🕒</span>
+              <div>
+                <b>Sortir Paket Masuk:</b> Pukul 08.00 – 10.00 WIB
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '18px' }}>🛵</span>
+              <div>
+                <b>Keberangkatan Kurir:</b> Pagi (10.30 WIB) & Siang (14.30 WIB)
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '18px' }}>📍</span>
+              <div>
+                <b>Wilayah Layanan:</b> Menjangkau 11 Desa Se-Kecamatan Naringgul
+              </div>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '18px' }}>🛵</span>
-            <div>
-              <b>Keberangkatan Kurir:</b> Pagi (10.30 WIB) & Siang (14.30 WIB)
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '18px' }}>📍</span>
-            <div>
-              <b>Wilayah Layanan:</b> Menjangkau 11 Desa Se-Kecamatan Naringgul
-            </div>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      </div>
 
       {/* 5. Informasi Biaya Paket & Ongkir (Disesuaikan oleh Kurir) */}
       <Card
