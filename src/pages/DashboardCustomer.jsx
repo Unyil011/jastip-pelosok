@@ -347,71 +347,72 @@ export default function DashboardCustomer() {
         </button>
       </div>
 
-      {/* 2. Hero Banner Solusi Jastip Pelosok (Inspirasi "YOUR SOLUTION, ONE TAP AWAY!") */}
+      {/* 2. Hero Banner Solusi Jastip Pelosok */}
       <div
         style={{
-          background: 'linear-gradient(135deg, #064e3b 0%, #047857 60%, #059669 100%)',
-          borderRadius: '20px',
+          background: 'linear-gradient(135deg, #064e3b 0%, #047857 55%, #059669 100%)',
+          borderRadius: '22px',
           padding: '20px 18px',
           color: '#ffffff',
           position: 'relative',
           overflow: 'hidden',
           marginBottom: '20px',
-          boxShadow: '0 8px 24px rgba(6, 95, 70, 0.28), var(--skeuo-button-raised)',
-          border: '1px solid rgba(255, 255, 255, 0.18)',
+          boxShadow: '0 10px 28px rgba(6, 95, 70, 0.3), var(--skeuo-button-raised)',
+          border: '1.5px solid rgba(255, 255, 255, 0.22)',
         }}
       >
         {/* Dekorasi visual lingkaran */}
         <div
           style={{
             position: 'absolute',
-            top: '-30px',
-            right: '-30px',
-            width: '130px',
-            height: '130px',
+            top: '-35px',
+            right: '-35px',
+            width: '140px',
+            height: '140px',
             borderRadius: '50%',
             background: 'rgba(255, 255, 255, 0.08)',
             pointerEvents: 'none',
           }}
         />
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '14px' }}>
           <div style={{ flex: 1, zIndex: 1 }}>
-            <span
+            {/* Nama Aplikasi Besar Sesuai Permintaan User */}
+            <h2
               style={{
-                fontSize: '10.5px',
-                fontWeight: '800',
-                letterSpacing: '1px',
-                textTransform: 'uppercase',
-                background: 'rgba(255, 255, 255, 0.22)',
-                padding: '3px 9px',
-                borderRadius: '999px',
-                display: 'inline-block',
-                marginBottom: '8px',
-              }}
-            >
-              Solusi Antaran Desa
-            </span>
-            <h3
-              style={{
-                fontSize: '18px',
-                fontWeight: '800',
-                margin: '0 0 6px 0',
-                lineHeight: '1.25',
+                fontSize: '23px',
+                fontWeight: '900',
+                margin: '0 0 4px 0',
+                letterSpacing: '-0.5px',
                 color: '#ffffff',
+                textShadow: '0 2px 5px rgba(0,0,0,0.2)',
               }}
             >
-              Belanja Online Sampai Depan Pintu Rumah! 🛵
-            </h3>
+              Jastip Pelosok 🛵
+            </h2>
+
+            {/* Tagline & Kata-kata Pemanis */}
             <p
               style={{
-                fontSize: '12px',
-                opacity: 0.9,
+                fontSize: '12.5px',
+                fontWeight: '700',
+                color: '#d1fae5',
+                margin: '0 0 6px 0',
+                lineHeight: '1.35',
+              }}
+            >
+              Jembatan Belanja & Kiriman Anda Hingga ke Ujung Desa
+            </p>
+
+            <p
+              style={{
+                fontSize: '11.5px',
+                color: 'rgba(255, 255, 255, 0.88)',
                 margin: '0 0 14px 0',
                 lineHeight: '1.4',
               }}
             >
-              Jemput paket ekspedisi & belanjaan pasar ke 11 desa se-Kecamatan Naringgul.
+              Amanah, cepat & pasti diantar kurir sampai depan pintu rumah se-Kecamatan Naringgul.
             </p>
 
             <button
@@ -420,12 +421,12 @@ export default function DashboardCustomer() {
                 background: '#ffffff',
                 color: '#064e3b',
                 border: 'none',
-                padding: '8px 16px',
+                padding: '8px 18px',
                 borderRadius: '999px',
                 fontSize: '12.5px',
                 fontWeight: '800',
                 cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.18)',
+                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.22)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
@@ -439,14 +440,21 @@ export default function DashboardCustomer() {
             </button>
           </div>
 
-          <div
-            style={{
-              fontSize: '52px',
-              filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.22))',
-              zIndex: 1,
-            }}
-          >
-            📦
+          {/* Logo Jastip Pelosok Resmi dengan Animasi Mengambang (Floating Effect) */}
+          <div style={{ zIndex: 1, flexShrink: 0, textAlign: 'center' }}>
+            <img
+              src="/logo.webp"
+              alt="Logo Jastip Pelosok"
+              className="floating-hero-logo"
+              style={{
+                width: '76px',
+                height: '76px',
+                borderRadius: '18px',
+                objectFit: 'contain',
+                border: '2.5px solid rgba(255, 255, 255, 0.65)',
+                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
+              }}
+            />
           </div>
         </div>
       </div>

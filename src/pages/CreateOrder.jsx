@@ -10,7 +10,6 @@ import Button from '../components/Button';
 import BottomNav from '../components/BottomNav';
 import BottomSheet from '../components/BottomSheet';
 import SkeletonLoader from '../components/SkeletonLoader';
-import TopBar from '../components/TopBar';
 import Sidebar from '../components/Sidebar';
 import ConfirmationSheet from '../components/ConfirmationSheet';
 import { authService } from '../services/authService';
@@ -141,18 +140,90 @@ export default function CreateOrder() {
   };
 
   return (
-    <div className="app-container" style={{ paddingBottom: '90px', paddingTop: '8px' }}>
-      {/* Top Bar Kapsul Melayang */}
-      <TopBar onOpenProfile={() => setSidebarOpen(true)} />
+    <div className="app-container" style={{ paddingBottom: '90px', paddingTop: '12px' }}>
+      {/* Header Halaman Bersih (Tanpa Kapsul TopBar) */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '18px',
+          padding: '2px 2px',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => navigate('/dashboard-customer')}
+          style={{
+            background: 'var(--color-bg-card)',
+            border: '1px solid var(--color-border)',
+            borderRadius: '50%',
+            width: '38px',
+            height: '38px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '16px',
+            color: 'var(--color-text-main)',
+            boxShadow: 'var(--skeuo-button-raised)',
+          }}
+          title="Kembali ke Beranda"
+        >
+          ←
+        </button>
 
-      {/* Header */}
-      <div style={{ marginBottom: '18px' }}>
-        <h1 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-primary-dark)' }}>
-          Buat Order Baru 📦
-        </h1>
-        <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-          Titip pengiriman paket dari ekspedisi atau titip belanja
-        </p>
+        <div style={{ textAlign: 'center' }}>
+          <h1 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--color-primary-dark)', margin: 0 }}>
+            Buat Order Baru 📦
+          </h1>
+          <p style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', margin: '1px 0 0 0' }}>
+            Titip ekspedisi & belanja ke desa
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+          }}
+          title="Buka Menu Akun & Profil"
+        >
+          {profile?.foto_url ? (
+            <img
+              src={profile.foto_url}
+              alt="Profil"
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: '2px solid var(--color-primary)',
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary) 100%)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: '800',
+                fontSize: '15px',
+              }}
+            >
+              {profile?.nama ? profile.nama.charAt(0).toUpperCase() : '👤'}
+            </div>
+          )}
+        </button>
       </div>
 
       {loadingDesa ? (

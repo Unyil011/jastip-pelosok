@@ -7,7 +7,6 @@ import Badge from '../components/Badge';
 import Button from '../components/Button';
 import BottomNav from '../components/BottomNav';
 import SkeletonLoader from '../components/SkeletonLoader';
-import TopBar from '../components/TopBar';
 import Sidebar from '../components/Sidebar';
 import ConfirmationSheet from '../components/ConfirmationSheet';
 import { authService } from '../services/authService';
@@ -56,43 +55,86 @@ export default function OrderHistory() {
   });
 
   return (
-    <div className="app-container" style={{ paddingBottom: '90px', paddingTop: '8px' }}>
-      {/* Top Bar Kapsul Melayang */}
-      <TopBar onOpenProfile={() => setSidebarOpen(true)} />
-
-      {/* Header */}
+    <div className="app-container" style={{ paddingBottom: '90px', paddingTop: '12px' }}>
+      {/* Header Bersih Tanpa Kapsul TopBar */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '16px',
+          marginBottom: '18px',
+          padding: '2px 2px',
         }}
       >
         <div>
-          <h1 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-primary-dark)' }}>
+          <h1 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-primary-dark)', margin: 0 }}>
             Riwayat Order Saya 📦
           </h1>
-          <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+          <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px', margin: 0 }}>
             Pantau status paket dan pesanan Anda
           </p>
         </div>
-        <button
-          onClick={loadOrders}
-          style={{
-            background: 'var(--color-bg-card)',
-            border: '1px solid rgba(82,99,90,0.2)',
-            borderRadius: 'var(--radius-md)',
-            padding: '8px 12px',
-            fontSize: '12px',
-            fontWeight: '600',
-            color: 'var(--color-text-main)',
-            boxShadow: 'var(--skeuo-button-raised)',
-            cursor: 'pointer',
-          }}
-        >
-          🔄 Refresh
-        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={loadOrders}
+            style={{
+              background: 'var(--color-bg-card)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              padding: '7px 11px',
+              fontSize: '12px',
+              fontWeight: '700',
+              color: 'var(--color-text-main)',
+              boxShadow: 'var(--skeuo-button-raised)',
+              cursor: 'pointer',
+            }}
+          >
+            🔄 Refresh
+          </button>
+
+          <button
+            onClick={() => setSidebarOpen(true)}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+            }}
+            title="Buka Menu Akun & Profil"
+          >
+            {profile?.foto_url ? (
+              <img
+                src={profile.foto_url}
+                alt="Profil"
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: '2px solid var(--color-primary)',
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary) 100%)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: '800',
+                  fontSize: '15px',
+                }}
+              >
+                {profile?.nama ? profile.nama.charAt(0).toUpperCase() : '👤'}
+              </div>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Filter Tabs (Skeuomorphic Segmented Pill) */}
