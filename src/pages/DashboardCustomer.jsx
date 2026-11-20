@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { authService } from '../services/authService';
+import { orderService } from '../services/orderService';
 import { villageService } from '../services/villageService';
 import { getFriendlyErrorMessage } from '../utils/errorHandler';
 import { compressImageToWebP } from '../utils/imageCompressor';
@@ -13,6 +14,7 @@ import BottomNav from '../components/BottomNav';
 import BottomSheet from '../components/BottomSheet';
 import ConfirmationSheet from '../components/ConfirmationSheet';
 import Sidebar from '../components/Sidebar';
+import TopBar from '../components/TopBar';
 
 export default function DashboardCustomer() {
   const navigate = useNavigate();
@@ -25,6 +27,10 @@ export default function DashboardCustomer() {
   const [logoutSheetOpen, setLogoutSheetOpen] = useState(false);
   const [noticeSheetOpen, setNoticeSheetOpen] = useState(false);
   const [noticeMessage, setNoticeMessage] = useState('');
+
+  // Active Order Live Tracking State
+  const [activeOrder, setActiveOrder] = useState(null);
+  const [loadingOrder, setLoadingOrder] = useState(true);
 
   // State Form Profil, Foto & Alamat
   const [name, setName] = useState(profile?.nama || '');
@@ -44,23 +50,34 @@ export default function DashboardCustomer() {
   const [manualCoordMode, setManualCoordMode] = useState(false);
   const [pastedMapText, setPastedMapText] = useState('');
 
-  // State Saving
+  // State Kalkulator Ongkir Cepat
+  const [calcDesaId, setCalcDesaId] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Data 11 Desa Pelosok
   const [desaList, setDesaList] = useState([]);
 
   useEffect(() => {
-    async function loadDesa() {
+    async function loadInitialData() {
       try {
         const list = await villageService.getAllDesa();
         setDesaList(list);
+
+        if (profile?.id) {
+          const orders = await orderService.getOrdersByCustomerId(profile.id);
+          const active = orders.find(
+            (o) => o.status_pengiriman !== 'sampai_tujuan' && o.status_konfirmasi !== 'ditolak'
+          );
+          setActiveOrder(active || null);
+        }
       } catch (err) {
-        console.error('Gagal mengambil daftar desa:', err);
+        console.error('Gagal memuat data awal:', err);
+      } finally {
+        setLoadingOrder(false);
       }
     }
-    loadDesa();
-  }, []);
+    loadInitialData();
+  }, [profile?.id]);
 
   // Sinkronisasi data saat profil diperbarui
   useEffect(() => {
@@ -128,7 +145,6 @@ export default function DashboardCustomer() {
     setPastedMapText(text);
     if (!text) return;
 
-    // Cek format angka biasa: -7.12345, 107.12345
     const matchSimple = text.match(/(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)/);
     if (matchSimple) {
       setLatitude(parseFloat(matchSimple[1]));
@@ -136,7 +152,6 @@ export default function DashboardCustomer() {
       return;
     }
 
-    // Cek format URL: ?q=-7.123,107.123 atau @-7.123,107.123
     const matchUrl = text.match(/[@?&]q?=?(-?\d+\.\d+)[,/](-?\d+\.\d+)/);
     if (matchUrl) {
       setLatitude(parseFloat(matchUrl[1]));
@@ -209,15 +224,6 @@ export default function DashboardCustomer() {
     setNoticeSheetOpen(true);
   };
 
-  const handleCreateOrderClick = () => {
-    if (!isProfileComplete) {
-      showNotice('Silakan lengkapi nomor WhatsApp dan alamat rumah Anda terlebih dahulu sebelum membuat pesanan.');
-      setProfileSheetOpen(true);
-      return;
-    }
-    navigate('/buat-order');
-  };
-
   const handleLogout = async () => {
     try {
       await authService.logout();
@@ -229,86 +235,10 @@ export default function DashboardCustomer() {
 
   return (
     <div className="app-container" style={{ paddingBottom: '90px', paddingTop: '8px' }}>
-      {/* Top Bar Melayang Berbentuk Kapsul di Tengah Atas (Floating Capsule) */}
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '440px',
-          margin: '0 auto 16px auto',
-          background: 'var(--color-bg-card)',
-          borderRadius: '999px',
-          padding: '6px 8px 6px 14px',
-          boxShadow: 'var(--skeuo-button-raised), 0 4px 18px rgba(0, 0, 0, 0.08)',
-          border: '1.5px solid var(--color-border)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          backdropFilter: 'blur(8px)',
-        }}
-      >
-        {/* Brand Kiri di Kapsul */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <img
-            src="/logo.webp"
-            alt="Logo Jastip Pelosok"
-            style={{ width: '28px', height: '28px', borderRadius: '8px', objectFit: 'contain' }}
-          />
-          <span style={{ fontSize: '14.5px', fontWeight: '800', color: 'var(--color-primary-dark)', letterSpacing: '-0.3px' }}>
-            Jastip Pelosok
-          </span>
-        </div>
+      {/* 1. Top Bar Kapsul Melayang (Konsisten Menampilkan Logo & Foto Profil Pengguna) */}
+      <TopBar onOpenProfile={() => setSidebarOpen(true)} />
 
-        {/* Avatar Profil Kanan di Kapsul (Klik untuk Buka Drawer dari Kanan) */}
-        <button
-          onClick={() => setSidebarOpen(true)}
-          title="Buka Menu & Pengaturan"
-          style={{
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {profile?.foto_url ? (
-            <img
-              src={profile.foto_url}
-              alt={profile?.nama || 'Profil'}
-              style={{
-                width: '38px',
-                height: '38px',
-                borderRadius: '50%',
-                objectFit: 'cover',
-                border: '2px solid var(--color-primary)',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-              }}
-            />
-          ) : (
-            <div
-              style={{
-                width: '38px',
-                height: '38px',
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary) 100%)',
-                color: '#ffffff',
-                border: '2px solid rgba(255, 255, 255, 0.5)',
-                boxShadow: 'var(--skeuo-button-raised)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: '800',
-                fontSize: '15px',
-              }}
-            >
-              {profile?.nama ? profile.nama.charAt(0).toUpperCase() : 'C'}
-            </div>
-          )}
-        </button>
-      </div>
-
-      {/* Top Welcome Banner Card (Dengan Foto Profil Pengguna di Samping Tulisan Halo) */}
+      {/* 2. Banner Sambutan Hijau (Tanpa Foto Dobel, Menampilkan Maskot Antaran 🛵) */}
       <Card
         style={{
           background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary-dark) 100%)',
@@ -316,44 +246,28 @@ export default function DashboardCustomer() {
           border: '1px solid rgba(255, 255, 255, 0.25)',
           padding: '20px',
           boxShadow: 'var(--skeuo-button-raised)',
+          marginBottom: '16px',
         }}
       >
         <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-          {/* Foto Profil Pengguna */}
-          {profile?.foto_url ? (
-            <img
-              src={profile.foto_url}
-              alt={profile?.nama || 'Foto Profil'}
-              style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: '50%',
-                objectFit: 'cover',
-                border: '2.5px solid rgba(255, 255, 255, 0.75)',
-                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.25)',
-              }}
-            />
-          ) : (
-            <div
-              style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: '50%',
-                background: 'rgba(255, 255, 255, 0.25)',
-                border: '2px solid rgba(255, 255, 255, 0.6)',
-                backdropFilter: 'blur(4px)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '24px',
-                fontWeight: '800',
-                color: '#ffffff',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
-              }}
-            >
-              {profile?.nama ? profile.nama.charAt(0).toUpperCase() : 'C'}
-            </div>
-          )}
+          {/* Ikon Pengiriman Maskot 3D (Bukan Foto Pengguna Lagi agar Tidak Dobel) */}
+          <div
+            style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '16px',
+              background: 'rgba(255, 255, 255, 0.2)',
+              border: '2px solid rgba(255, 255, 255, 0.45)',
+              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.2)',
+              backdropFilter: 'blur(6px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '28px',
+            }}
+          >
+            🛵
+          </div>
 
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
@@ -368,7 +282,7 @@ export default function DashboardCustomer() {
                   borderRadius: '999px',
                 }}
               >
-                Customer
+                Pelanggan Setia
               </span>
               {isProfileComplete ? (
                 <span
@@ -381,7 +295,7 @@ export default function DashboardCustomer() {
                     borderRadius: '999px',
                   }}
                 >
-                  ✓ Alamat Lengkap
+                  ✓ Alamat Siap
                 </span>
               ) : (
                 <span
@@ -411,18 +325,17 @@ export default function DashboardCustomer() {
             >
               Halo, {profile?.nama || 'Pelanggan'}! 👋
             </h2>
-            <p style={{ fontSize: '12.5px', opacity: 0.9, marginTop: '3px' }}>
-              {profile?.no_hp ? `📱 WA: ${profile.no_hp}` : 'Nomor WhatsApp belum diisi'}
+            <p style={{ fontSize: '12px', opacity: 0.9, marginTop: '3px' }}>
+              {profile?.alamat ? `📍 ${profile.alamat.split('(')[0]}` : 'Alamat rumah belum diatur'}
             </p>
           </div>
         </div>
       </Card>
 
-      {/* Warning Card: Jika Data Alamat Belum Lengkap */}
-      {!isProfileComplete ? (
+      {/* Peringatan Jika Data Alamat Belum Lengkap */}
+      {!isProfileComplete && (
         <Card
           style={{
-            marginTop: '14px',
             marginBottom: '16px',
             border: '2px dashed #f59e0b',
             background: 'rgba(245, 158, 11, 0.08)',
@@ -435,7 +348,7 @@ export default function DashboardCustomer() {
                 Lengkapi Alamat Pengiriman Anda
               </h4>
               <p style={{ fontSize: '12.5px', color: 'var(--color-text-main)', marginTop: '4px', lineHeight: '1.4' }}>
-                Sebelum bisa membuat pesanan jastip / kirim barang, mohon lengkapi nomor WhatsApp, foto, dan alamat rumah Anda terlebih dahulu.
+                Sebelum bisa membuat pesanan jastip / kirim barang, mohon lengkapi nomor WhatsApp dan alamat rumah Anda terlebih dahulu.
               </p>
               <div style={{ marginTop: '12px' }}>
                 <Button size="sm" onClick={() => setProfileSheetOpen(true)}>
@@ -445,141 +358,236 @@ export default function DashboardCustomer() {
             </div>
           </div>
         </Card>
-      ) : (
-        /* Card Alamat Tersimpan & Titik GPS (Jika Sudah Lengkap) */
-        <Card
-          style={{
-            marginTop: '14px',
-            marginBottom: '16px',
-            background: 'var(--color-bg-base)',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div style={{ flex: 1, paddingRight: '10px' }}>
-              <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-primary)', textTransform: 'uppercase' }}>
-                Alamat Rumah Pengiriman
-              </span>
-              <p style={{ fontSize: '13px', fontWeight: '600', color: 'var(--color-text-main)', marginTop: '4px', lineHeight: '1.4' }}>
-                {profile?.alamat}
-              </p>
+      )}
 
-              {/* Status Titik GPS Maps */}
-              {profile?.latitude && profile?.longitude ? (
-                <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '11.5px', color: '#16a34a', fontWeight: '700' }}>
-                    📍 Titik Koordinat GPS Tersimpan
-                  </span>
-                  <a
-                    href={`https://www.google.com/maps?q=${profile.latitude},${profile.longitude}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ fontSize: '11.5px', color: 'var(--color-primary)', fontWeight: '700', textDecoration: 'underline' }}
-                  >
-                    (Cek Maps)
-                  </a>
-                </div>
-              ) : (
-                <div style={{ marginTop: '6px', fontSize: '11.5px', color: '#d97706', fontWeight: '600' }}>
-                  📍 Titik GPS belum diatur (Kurir butuh patokan manual)
-                </div>
-              )}
+      {/* 3. KONTEN UTAMA: Live Status & Pelacakan Paket ala Shopee */}
+      {activeOrder ? (
+        <Card
+          title="Pelacakan Pengiriman Langsung"
+          subtitle="Pantau posisi dan status kurir menuju rumah Anda"
+          style={{ marginBottom: '16px', border: '1.5px solid var(--color-primary)' }}
+        >
+          <div
+            style={{
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(34, 197, 94, 0.08)',
+              border: '1px solid rgba(34, 197, 94, 0.25)',
+              marginBottom: '14px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--color-primary-dark)', textTransform: 'uppercase' }}>
+                {activeOrder.jenis_barang === 'paket_ekspedisi' ? '📦 PAKET EKSPEDISI' : '🛒 TITIP BELI'}
+              </span>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                  background: 'var(--color-primary)',
+                  color: '#ffffff',
+                }}
+              >
+                {activeOrder.status_pengiriman === 'diantar'
+                  ? '🛵 Sedang Diantar'
+                  : activeOrder.status_pengiriman === 'diterima_hub'
+                  ? '🏢 Di Hub Kecamatan'
+                  : '⏳ Menunggu di Hub'}
+              </span>
             </div>
 
-            <button
-              onClick={() => setProfileSheetOpen(true)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--color-primary)',
-                fontSize: '12px',
-                fontWeight: '700',
-                cursor: 'pointer',
-                padding: '4px 8px',
-                textDecoration: 'underline',
-              }}
-            >
-              Ubah
-            </button>
+            <h3 style={{ fontSize: '16px', fontWeight: '800', margin: '6px 0 2px 0', color: 'var(--color-text-main)' }}>
+              {activeOrder.nomor_resi ? `Resi: ${activeOrder.nomor_resi}` : activeOrder.deskripsi_barang}
+            </h3>
+            <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: 0 }}>
+              Tujuan: {activeOrder.alamat_tujuan}
+            </p>
           </div>
+
+          {/* Simulasi Peta Live Tracking Sederhana & Ringan */}
+          <div
+            style={{
+              padding: '16px',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--color-bg-base)',
+              boxShadow: 'var(--skeuo-input-sunken)',
+              textAlign: 'center',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', margin: '8px 0 14px 0' }}>
+              <div>
+                <div style={{ fontSize: '24px' }}>🏢</div>
+                <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-text-dim)' }}>Hub Kecamatan</span>
+              </div>
+              <div style={{ flex: 1, height: '2px', background: 'var(--color-primary)', margin: '0 8px', position: 'relative' }}>
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '-12px',
+                    left: activeOrder.status_pengiriman === 'diantar' ? '65%' : '20%',
+                    fontSize: '16px',
+                    transition: 'left 0.5s ease',
+                  }}
+                >
+                  🛵
+                </span>
+              </div>
+              <div>
+                <div style={{ fontSize: '24px' }}>🏠</div>
+                <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-primary-dark)' }}>Rumah Anda</span>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '12.5px', color: 'var(--color-text-main)', margin: '4px 0 12px 0', fontWeight: '600' }}>
+              {activeOrder.status_pengiriman === 'diantar'
+                ? '🛵 Kurir sedang membawa paket menuju ke alamat Anda!'
+                : '🏢 Paket Anda sudah aman di hub kecamatan dan siap diantar kurir.'}
+            </p>
+
+            {profile?.latitude && profile?.longitude && (
+              <a
+                href={`https://www.google.com/maps?q=${profile.latitude},${profile.longitude}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '7px 14px',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'var(--color-bg-card)',
+                  border: '1px solid var(--color-border)',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  color: 'var(--color-primary)',
+                  textDecoration: 'none',
+                }}
+              >
+                🗺️ Buka Rute Rumah di Google Maps
+              </a>
+            )}
+          </div>
+        </Card>
+      ) : (
+        /* Status Santai Jika Belum Ada Paket yang Sedang Diantar */
+        <Card style={{ marginBottom: '16px', textAlign: 'center', padding: '24px 18px' }}>
+          <div style={{ fontSize: '42px', marginBottom: '8px' }}>📦</div>
+          <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--color-primary-dark)', margin: 0 }}>
+            Tidak Ada Paket yang Sedang Berjalan
+          </h3>
+          <p style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', marginTop: '6px', lineHeight: '1.5' }}>
+            Sedang belanja online di Shopee, Tokopedia, atau TikTok Shop?
+            Kirimkan nomor resinya melalui tombol <b>(+)</b> di bawah agar kami jemput ke hub kecamatan!
+          </p>
         </Card>
       )}
 
-      {/* Quick Action Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-        <Card
-          onClick={handleCreateOrderClick}
-          padding="16px"
-          style={{
-            cursor: 'pointer',
-            textAlign: 'center',
-            position: 'relative',
-            opacity: isProfileComplete ? 1 : 0.85,
-            border: isProfileComplete ? '1px solid var(--color-border)' : '1px dashed var(--color-border)',
-          }}
-        >
-          {!isProfileComplete && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '8px',
-                right: '8px',
-                fontSize: '10px',
-                fontWeight: '700',
-                background: '#f59e0b',
-                color: '#fff',
-                padding: '2px 6px',
-                borderRadius: '999px',
-              }}
-            >
-              🔒 Butuh Alamat
-            </div>
-          )}
-          <div style={{ fontSize: '32px', marginBottom: '6px' }}>➕</div>
-          <h4 style={{ fontSize: '14.5px', fontWeight: '700', color: 'var(--color-primary-dark)' }}>
-            Buat Order Baru
-          </h4>
-          <p style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-            Titip resi ekspedisi / belanjaan
-          </p>
-        </Card>
-
-        <Card
-          onClick={() => navigate('/riwayat-order')}
-          padding="16px"
-          style={{ cursor: 'pointer', textAlign: 'center' }}
-        >
-          <div style={{ fontSize: '32px', marginBottom: '6px' }}>📋</div>
-          <h4 style={{ fontSize: '14.5px', fontWeight: '700', color: 'var(--color-primary-dark)' }}>
-            Riwayat Titipan
-          </h4>
-          <p style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-            Pantau status kiriman Anda
-          </p>
-        </Card>
-      </div>
-
-      {/* Info Card: Cara Kerja Jastip Pelosok */}
-      <Card title="Cara Kerja Jastip Pelosok" subtitle="Belanja & paket aman sampai pelosok desa">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', color: 'var(--color-text-main)' }}>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <span style={{ fontSize: '18px' }}>1️⃣</span>
+      {/* 4. Jadwal Operasional Hub & Info Antaran Desa */}
+      <Card
+        title="Jadwal Antaran Hub Kecamatan"
+        subtitle="Waktu sortir dan keberangkatan kurir ke desa"
+        style={{ marginBottom: '16px' }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '18px' }}>🕒</span>
             <div>
-              <b>Input Resi / Titip Beli:</b> Masukkan nomor resi paket dari Shopee/Tokopedia atau daftar belanjaan pasar.
+              <b>Sortir Paket Masuk:</b> Pukul 08.00 – 10.00 WIB
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <span style={{ fontSize: '18px' }}>2️⃣</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '18px' }}>🛵</span>
             <div>
-              <b>Disortir di Hub Kecamatan:</b> Petugas admin memeriksa dan mengelompokkan paket sesuai jalur desa.
+              <b>Keberangkatan Kurir:</b> Pagi (10.30 WIB) & Siang (14.30 WIB)
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <span style={{ fontSize: '18px' }}>3️⃣</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '18px' }}>📍</span>
             <div>
-              <b>Kurir Mengantar ke Rumah:</b> Kurir lokal melihat rute di Maps dan membawa paket langsung ke rumah Anda.
+              <b>Wilayah Layanan:</b> Menjangkau 11 Desa Se-Kecamatan Naringgul
             </div>
           </div>
         </div>
+      </Card>
+
+      {/* 5. Cek Estimasi Ongkir Cepat Antar Desa */}
+      <Card
+        title="Cek Tarif Ongkir Antar Desa"
+        subtitle="Transparan tanpa biaya tersembunyi"
+        style={{ marginBottom: '16px' }}
+      >
+        <Select
+          label="Pilih Desa Tujuan"
+          placeholder="-- Pilih Salah Satu Desa --"
+          value={calcDesaId}
+          onChange={(e) => setCalcDesaId(e.target.value)}
+          options={desaList.map((d) => ({
+            value: d.id,
+            label: `Desa ${d.nama_desa}`,
+          }))}
+        />
+
+        {calcDesaId && (
+          <div
+            style={{
+              marginTop: '12px',
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--color-bg-base)',
+              boxShadow: 'var(--skeuo-input-sunken)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', textTransform: 'uppercase', fontWeight: '700' }}>
+                Estimasi Biaya Jastip
+              </span>
+              <h4 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--color-primary-dark)', margin: '2px 0 0 0' }}>
+                Rp 10.000 <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--color-text-muted)' }}>/ paket</span>
+              </h4>
+            </div>
+            <span style={{ fontSize: '11px', fontWeight: '700', background: 'rgba(34, 197, 94, 0.15)', color: 'var(--color-primary)', padding: '4px 8px', borderRadius: '6px' }}>
+              Sampai Pintu Rumah
+            </span>
+          </div>
+        )}
+      </Card>
+
+      {/* 6. Bantuan Cepat WhatsApp Admin Hub */}
+      <Card style={{ textAlign: 'center', padding: '18px' }}>
+        <h4 style={{ fontSize: '14.5px', fontWeight: '800', color: 'var(--color-primary-dark)', margin: 0 }}>
+          Punya Pertanyaan Seputar Paket?
+        </h4>
+        <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: '4px 0 12px 0' }}>
+          Admin kami siap membantu pengecekan resi belanjaan atau titip beli
+        </p>
+        <a
+          href="https://wa.me/6281234567890?text=Halo%20Admin%20Jastip%20Pelosok,%20saya%20mau%20tanya%20paket"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: '#25D366',
+            color: '#ffffff',
+            padding: '9px 18px',
+            borderRadius: 'var(--radius-md)',
+            fontWeight: '700',
+            fontSize: '13px',
+            textDecoration: 'none',
+            boxShadow: '0 4px 12px rgba(37, 211, 102, 0.35)',
+          }}
+        >
+          <span>💬</span>
+          <span>Chat WhatsApp Admin Hub</span>
+        </a>
       </Card>
 
       {/* Bottom Sheet: Form Lengkapi / Ubah Profil, Foto & Titik GPS */}
@@ -590,7 +598,7 @@ export default function DashboardCustomer() {
       >
         <div style={{ padding: '4px 0 20px 0' }}>
           <form onSubmit={handleSaveProfile}>
-            {/* Bagian 1: Upload / Ganti Foto Profil (Otomatis Kompres WebP) */}
+            {/* Foto Profil (Tampilan Bersih dengan Tombol "Ubah Foto Profil") */}
             <div
               style={{
                 display: 'flex',
@@ -680,20 +688,18 @@ export default function DashboardCustomer() {
                   background: 'none',
                   border: 'none',
                   color: 'var(--color-primary)',
-                  fontSize: '12.5px',
+                  fontSize: '13px',
                   fontWeight: '700',
                   cursor: 'pointer',
                   textDecoration: 'underline',
+                  marginTop: '2px',
                 }}
               >
-                {compressingFoto ? 'Mengompres foto ke WebP...' : '📷 Pilih / Ganti Foto Wajah (WebP Ringan)'}
+                {compressingFoto ? 'Memproses foto...' : 'Ubah Foto Profil'}
               </button>
-              <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginTop: '2px' }}>
-                Otomatis dikompres ringan untuk hemat kuota
-              </span>
             </div>
 
-            {/* Bagian 2: Data Akun */}
+            {/* Data Akun */}
             <Input
               label="Nama Lengkap"
               placeholder="Contoh: Ramon"
@@ -750,7 +756,7 @@ export default function DashboardCustomer() {
               />
             </div>
 
-            {/* Bagian 3: Titik Koordinat GPS Rumah untuk Kurir (Bisa Otomatis & Manual) */}
+            {/* Titik Koordinat GPS Rumah untuk Kurir */}
             <div
               style={{
                 marginTop: '14px',
@@ -776,7 +782,6 @@ export default function DashboardCustomer() {
                 Kurir akan memakai titik ini untuk navigasi Google Maps langsung ke rumah Anda di pelosok.
               </p>
 
-              {/* Tombol 1: GPS HP Otomatis */}
               <Button
                 type="button"
                 variant="outline"
@@ -788,7 +793,6 @@ export default function DashboardCustomer() {
                 📍 Ambil Titik Rumah Saya Saat Ini (GPS HP)
               </Button>
 
-              {/* Tombol Toggle Mode Manual */}
               <div style={{ textAlign: 'center', margin: '4px 0 8px 0' }}>
                 <button
                   type="button"
@@ -807,7 +811,6 @@ export default function DashboardCustomer() {
                 </button>
               </div>
 
-              {/* Form Input Koordinat Manual / Tempel Link Google Maps */}
               {manualCoordMode && (
                 <div
                   style={{
@@ -884,7 +887,6 @@ export default function DashboardCustomer() {
                 </div>
               )}
 
-              {/* Status Koordinat Terisi */}
               {latitude && longitude ? (
                 <div style={{ fontSize: '12px', color: 'var(--color-text-main)', marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>📍 {Number(latitude).toFixed(5)}, {Number(longitude).toFixed(5)}</span>
@@ -921,7 +923,7 @@ export default function DashboardCustomer() {
         </div>
       </BottomSheet>
 
-      {/* Drawer Sidebar Menu Kanan (Pengaturan, Tema, Navigasi, Logout) */}
+      {/* Drawer Sidebar Menu Kanan (Pengaturan Murni & Logout) */}
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}

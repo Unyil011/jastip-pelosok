@@ -10,10 +10,16 @@ import Button from '../components/Button';
 import BottomNav from '../components/BottomNav';
 import BottomSheet from '../components/BottomSheet';
 import SkeletonLoader from '../components/SkeletonLoader';
+import TopBar from '../components/TopBar';
+import Sidebar from '../components/Sidebar';
+import ConfirmationSheet from '../components/ConfirmationSheet';
+import { authService } from '../services/authService';
 
 export default function CreateOrder() {
   const navigate = useNavigate();
   const { profile, isProfileComplete } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [logoutSheetOpen, setLogoutSheetOpen] = useState(false);
 
   // Guard: Jika data profil belum lengkap, paksa kembali ke dashboard customer untuk melengkapi data
   useEffect(() => {
@@ -109,7 +115,10 @@ export default function CreateOrder() {
   };
 
   return (
-    <div className="app-container">
+    <div className="app-container" style={{ paddingBottom: '90px', paddingTop: '8px' }}>
+      {/* Top Bar Kapsul Melayang */}
+      <TopBar onOpenProfile={() => setSidebarOpen(true)} />
+
       {/* Header */}
       <div style={{ marginBottom: '18px' }}>
         <h1 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-primary-dark)' }}>
@@ -396,6 +405,28 @@ export default function CreateOrder() {
           </div>
         </div>
       </BottomSheet>
+
+      {/* Drawer Sidebar Menu Kanan */}
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onOpenAddressModal={() => navigate('/dashboard-customer')}
+        onTriggerLogout={() => setLogoutSheetOpen(true)}
+      />
+
+      {/* Confirmation Sheet Logout */}
+      <ConfirmationSheet
+        isOpen={logoutSheetOpen}
+        onClose={() => setLogoutSheetOpen(false)}
+        onConfirm={async () => {
+          await authService.logout();
+          navigate('/login');
+        }}
+        title="Konfirmasi Keluar"
+        message="Apakah Anda yakin ingin keluar dari akun Jastip Pelosok?"
+        confirmText="Ya, Keluar"
+        confirmVariant="danger"
+      />
 
       {/* Bottom Navigation */}
       <BottomNav role="customer" />

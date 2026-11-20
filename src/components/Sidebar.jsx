@@ -1,16 +1,13 @@
 import React, { useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
 import ThemeToggle from './ThemeToggle';
 
 export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTriggerLogout }) {
-  const navigate = useNavigate();
-  const location = useLocation();
   const { profile, isProfileComplete } = useAuth();
   const { isDark } = useTheme();
 
-  // Kunci scrolling saat sidebar terbuka
+  // Kunci scrolling body saat sidebar terbuka
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -22,14 +19,9 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
     };
   }, [isOpen]);
 
-  const handleNav = (path) => {
-    navigate(path);
-    onClose();
-  };
-
   return (
     <>
-      {/* Backdrop Gelap dengan Blur */}
+      {/* Backdrop Gelap dengan Efek Blur */}
       <div
         onClick={onClose}
         style={{
@@ -48,7 +40,7 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
         }}
       />
 
-      {/* Drawer Sidebar Menu (Meluncur dari Kanan Layar) */}
+      {/* Drawer Sidebar Menu Kanan (Pengaturan & Akun Saja) */}
       <div
         style={{
           position: 'fixed',
@@ -92,10 +84,10 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
             />
             <div>
               <h3 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--color-primary-dark)', margin: 0 }}>
-                Jastip Pelosok
+                Pengaturan
               </h3>
               <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                Pengaturan & Akun
+                Akun & Preferensi Aplikasi
               </span>
             </div>
           </div>
@@ -121,7 +113,7 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
           </button>
         </div>
 
-        {/* Info Pengguna Terhubung dengan Foto Wajah */}
+        {/* Ringkasan Profil Pengguna */}
         <div
           style={{
             padding: '18px 18px',
@@ -226,83 +218,13 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
           </div>
         </div>
 
-        {/* Menu Navigasi & Pengaturan */}
-        <div style={{ padding: '16px 14px', flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {/* Menu Pengaturan Murni (Tanpa Menu Utama yang Dobel) */}
+        <div style={{ padding: '18px 14px', flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-dim)', padding: '0 8px', letterSpacing: '0.6px', textTransform: 'uppercase' }}>
-            Menu Utama
+            Pengaturan Akun
           </div>
 
-          <button
-            onClick={() => handleNav('/dashboard-customer')}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              padding: '11px 12px',
-              borderRadius: 'var(--radius-md)',
-              border: 'none',
-              background: location.pathname === '/dashboard-customer' ? 'rgba(34, 197, 94, 0.12)' : 'transparent',
-              color: location.pathname === '/dashboard-customer' ? 'var(--color-primary)' : 'var(--color-text-main)',
-              fontWeight: location.pathname === '/dashboard-customer' ? '700' : '600',
-              fontSize: '14px',
-              cursor: 'pointer',
-              textAlign: 'left',
-            }}
-          >
-            <span style={{ fontSize: '18px' }}>🏠</span>
-            <span>Beranda</span>
-          </button>
-
-          <button
-            onClick={() => handleNav('/buat-order')}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              padding: '11px 12px',
-              borderRadius: 'var(--radius-md)',
-              border: 'none',
-              background: location.pathname === '/buat-order' ? 'rgba(34, 197, 94, 0.12)' : 'transparent',
-              color: location.pathname === '/buat-order' ? 'var(--color-primary)' : 'var(--color-text-main)',
-              fontWeight: location.pathname === '/buat-order' ? '700' : '600',
-              fontSize: '14px',
-              cursor: 'pointer',
-              textAlign: 'left',
-            }}
-          >
-            <span style={{ fontSize: '18px' }}>➕</span>
-            <span>Buat Order Baru</span>
-          </button>
-
-          <button
-            onClick={() => handleNav('/riwayat-order')}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              padding: '11px 12px',
-              borderRadius: 'var(--radius-md)',
-              border: 'none',
-              background: location.pathname === '/riwayat-order' ? 'rgba(34, 197, 94, 0.12)' : 'transparent',
-              color: location.pathname === '/riwayat-order' ? 'var(--color-primary)' : 'var(--color-text-main)',
-              fontWeight: location.pathname === '/riwayat-order' ? '700' : '600',
-              fontSize: '14px',
-              cursor: 'pointer',
-              textAlign: 'left',
-            }}
-          >
-            <span style={{ fontSize: '18px' }}>📋</span>
-            <span>Riwayat Titipan</span>
-          </button>
-
-          <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-dim)', padding: '12px 8px 0 8px', letterSpacing: '0.6px', textTransform: 'uppercase' }}>
-            Pengaturan & Akun
-          </div>
-
-          {/* Pengaturan Alamat & Foto Profil */}
+          {/* Opsi Edit Profil & Alamat */}
           <button
             onClick={() => {
               onClose();
@@ -312,20 +234,29 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
               width: '100%',
               display: 'flex',
               alignItems: 'center',
-              gap: '12px',
-              padding: '11px 12px',
+              justifyContent: 'space-between',
+              padding: '13px 14px',
               borderRadius: 'var(--radius-md)',
-              border: 'none',
-              background: 'transparent',
-              color: 'var(--color-text-main)',
-              fontWeight: '600',
-              fontSize: '14px',
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-bg-base)',
+              boxShadow: 'var(--skeuo-button-raised)',
               cursor: 'pointer',
               textAlign: 'left',
+              transition: 'transform 0.15s ease',
             }}
           >
-            <span style={{ fontSize: '18px' }}>👤</span>
-            <span>Edit Profil, Foto & Alamat</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '20px' }}>👤</span>
+              <div>
+                <span style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-main)', display: 'block' }}>
+                  Edit Profil, Foto & Alamat
+                </span>
+                <span style={{ fontSize: '11.5px', color: 'var(--color-text-muted)' }}>
+                  Ubah data identitas, foto & GPS rumah
+                </span>
+              </div>
+            </div>
+            <span style={{ fontSize: '14px', color: 'var(--color-primary)' }}>➔</span>
           </button>
 
           {/* Pengaturan Dark/Light Mode */}
@@ -334,7 +265,7 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '10px 12px',
+              padding: '12px 14px',
               borderRadius: 'var(--radius-md)',
               background: 'var(--color-bg-base)',
               boxShadow: 'var(--skeuo-input-sunken)',
@@ -342,10 +273,15 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '18px' }}>{isDark ? '🌙' : '☀️'}</span>
-              <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--color-text-main)' }}>
-                {isDark ? 'Mode Gelap' : 'Mode Terang'}
-              </span>
+              <span style={{ fontSize: '20px' }}>{isDark ? '🌙' : '☀️'}</span>
+              <div>
+                <span style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-main)', display: 'block' }}>
+                  Tema Tampilan
+                </span>
+                <span style={{ fontSize: '11.5px', color: 'var(--color-text-muted)' }}>
+                  {isDark ? 'Mode Gelap Aktif' : 'Mode Terang Aktif'}
+                </span>
+              </div>
             </div>
             <ThemeToggle />
           </div>

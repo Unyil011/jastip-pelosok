@@ -7,6 +7,10 @@ import Badge from '../components/Badge';
 import Button from '../components/Button';
 import BottomNav from '../components/BottomNav';
 import SkeletonLoader from '../components/SkeletonLoader';
+import TopBar from '../components/TopBar';
+import Sidebar from '../components/Sidebar';
+import ConfirmationSheet from '../components/ConfirmationSheet';
+import { authService } from '../services/authService';
 import {
   formatDateIndonesia,
   getDeliveryStatusMeta,
@@ -16,6 +20,8 @@ import {
 export default function OrderHistory() {
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [logoutSheetOpen, setLogoutSheetOpen] = useState(false);
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -50,7 +56,10 @@ export default function OrderHistory() {
   });
 
   return (
-    <div className="app-container">
+    <div className="app-container" style={{ paddingBottom: '90px', paddingTop: '8px' }}>
+      {/* Top Bar Kapsul Melayang */}
+      <TopBar onOpenProfile={() => setSidebarOpen(true)} />
+
       {/* Header */}
       <div
         style={{
@@ -261,6 +270,28 @@ export default function OrderHistory() {
           })}
         </div>
       )}
+
+      {/* Drawer Sidebar Menu Kanan */}
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onOpenAddressModal={() => navigate('/dashboard-customer')}
+        onTriggerLogout={() => setLogoutSheetOpen(true)}
+      />
+
+      {/* Confirmation Sheet Logout */}
+      <ConfirmationSheet
+        isOpen={logoutSheetOpen}
+        onClose={() => setLogoutSheetOpen(false)}
+        onConfirm={async () => {
+          await authService.logout();
+          navigate('/login');
+        }}
+        title="Konfirmasi Keluar"
+        message="Apakah Anda yakin ingin keluar dari akun Jastip Pelosok?"
+        confirmText="Ya, Keluar"
+        confirmVariant="danger"
+      />
 
       {/* Bottom Navigation */}
       <BottomNav role="customer" />
