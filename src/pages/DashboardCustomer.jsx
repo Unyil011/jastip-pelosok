@@ -37,10 +37,12 @@ export default function DashboardCustomer() {
   const [rw, setRw] = useState('');
   const [patokan, setPatokan] = useState('');
 
-  // State Titik Koordinat GPS
-  const [latitude, setLatitude] = useState(profile?.latitude || null);
-  const [longitude, setLongitude] = useState(profile?.longitude || null);
+  // State Titik Koordinat GPS (Bisa GPS Otomatis & Manual)
+  const [latitude, setLatitude] = useState(profile?.latitude || '');
+  const [longitude, setLongitude] = useState(profile?.longitude || '');
   const [fetchingGps, setFetchingGps] = useState(false);
+  const [manualCoordMode, setManualCoordMode] = useState(false);
+  const [pastedMapText, setPastedMapText] = useState('');
 
   // State Saving
   const [savingProfile, setSavingProfile] = useState(false);
@@ -78,7 +80,6 @@ export default function DashboardCustomer() {
 
     setCompressingFoto(true);
     try {
-      // Kompres otomatis ke WebP kualitas tinggi tapi ringan (< 35 KB)
       const webpBase64 = await compressImageToWebP(file, 300, 0.8);
       setFotoUrl(webpBase64);
     } catch (err) {
@@ -88,10 +89,11 @@ export default function DashboardCustomer() {
     }
   };
 
-  // Handler Ambil Titik Koordinat GPS Rumah
+  // Handler Ambil Titik Koordinat GPS Rumah Otomatis
   const handleGetGpsLocation = () => {
     if (!navigator.geolocation) {
-      showNotice('Fitur GPS tidak didukung di browser ini.');
+      showNotice('Fitur GPS tidak didukung di browser ini. Anda bisa mengisinya manual di bawah.');
+      setManualCoordMode(true);
       return;
     }
 
@@ -108,13 +110,10 @@ export default function DashboardCustomer() {
         setFetchingGps(false);
         let msg = 'Gagal mendeteksi lokasi GPS.';
         if (error.code === error.PERMISSION_DENIED) {
-          msg = 'Izin akses lokasi ditolak. Silakan izinkan akses lokasi di browser HP Anda.';
-        } else if (error.code === error.POSITION_UNAVAILABLE) {
-          msg = 'Sinyal GPS tidak tersedia saat ini.';
-        } else if (error.code === error.TIMEOUT) {
-          msg = 'Waktu pencarian GPS habis. Pastikan GPS HP Anda aktif.';
+          msg = 'Izin akses lokasi ditolak. Silakan masukkan koordinat secara manual atau tempel link Google Maps.';
         }
         showNotice(msg);
+        setManualCoordMode(true);
       },
       {
         enableHighAccuracy: true,
@@ -122,6 +121,27 @@ export default function DashboardCustomer() {
         maximumAge: 0,
       }
     );
+  };
+
+  // Handler Parse Link atau Teks Koordinat Google Maps
+  const handleParseMapText = (text) => {
+    setPastedMapText(text);
+    if (!text) return;
+
+    // Cek format angka biasa: -7.12345, 107.12345
+    const matchSimple = text.match(/(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)/);
+    if (matchSimple) {
+      setLatitude(parseFloat(matchSimple[1]));
+      setLongitude(parseFloat(matchSimple[2]));
+      return;
+    }
+
+    // Cek format URL: ?q=-7.123,107.123 atau @-7.123,107.123
+    const matchUrl = text.match(/[@?&]q?=?(-?\d+\.\d+)[,/](-?\d+\.\d+)/);
+    if (matchUrl) {
+      setLatitude(parseFloat(matchUrl[1]));
+      setLongitude(parseFloat(matchUrl[2]));
+    }
   };
 
   // Handler Simpan Profil, Foto & Alamat
@@ -171,8 +191,8 @@ export default function DashboardCustomer() {
         address: formattedAddress,
         jalurId: chosenDesa?.jalur_id || null,
         fotoUrl: fotoUrl || null,
-        latitude: latitude || null,
-        longitude: longitude || null,
+        latitude: latitude ? parseFloat(latitude) : null,
+        longitude: longitude ? parseFloat(longitude) : null,
       });
 
       await refreshProfile();
@@ -300,7 +320,7 @@ export default function DashboardCustomer() {
         }}
       >
         <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-          {/* Foto Profil Pengguna (Menggantikan Logo Lama) */}
+          {/* Foto Profil Pengguna */}
           {profile?.foto_url ? (
             <img
               src={profile.foto_url}
@@ -731,12 +751,12 @@ export default function DashboardCustomer() {
               />
             </div>
 
-            {/* Bagian 3: Titik Koordinat GPS Rumah untuk Kurir */}
+            {/* Bagian 3: Titik Koordinat GPS Rumah untuk Kurir (Bisa Otomatis & Manual) */}
             <div
               style={{
-                marginTop: '12px',
+                marginTop: '14px',
                 marginBottom: '14px',
-                padding: '12px 14px',
+                padding: '14px',
                 borderRadius: 'var(--radius-md)',
                 background: 'var(--color-bg-base)',
                 border: '1px solid var(--color-border)',
@@ -754,9 +774,10 @@ export default function DashboardCustomer() {
               </div>
 
               <p style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', margin: '0 0 10px 0', lineHeight: '1.4' }}>
-                Kurir akan memakai titik ini untuk navigasi Google Maps langsung ke depan pintu rumah Anda di pelosok.
+                Kurir akan memakai titik ini untuk navigasi Google Maps langsung ke rumah Anda di pelosok.
               </p>
 
+              {/* Tombol 1: GPS HP Otomatis */}
               <Button
                 type="button"
                 variant="outline"
@@ -768,9 +789,106 @@ export default function DashboardCustomer() {
                 📍 Ambil Titik Rumah Saya Saat Ini (GPS HP)
               </Button>
 
+              {/* Tombol Toggle Mode Manual */}
+              <div style={{ textAlign: 'center', margin: '4px 0 8px 0' }}>
+                <button
+                  type="button"
+                  onClick={() => setManualCoordMode(!manualCoordMode)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--color-primary)',
+                    fontSize: '11.5px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  {manualCoordMode ? '▲ Tutup Pengaturan Manual' : '▼ Sedang di luar rumah? Atur titik manual di sini'}
+                </button>
+              </div>
+
+              {/* Form Input Koordinat Manual / Tempel Link Google Maps */}
+              {manualCoordMode && (
+                <div
+                  style={{
+                    marginTop: '8px',
+                    padding: '12px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--color-bg-card)',
+                    border: '1px dashed var(--color-border)',
+                  }}
+                >
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-text-main)', display: 'block', marginBottom: '4px' }}>
+                    Tempel Link / Koordinat Google Maps:
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Contoh: -7.4523, 107.5123 atau link Google Maps"
+                    value={pastedMapText}
+                    onChange={(e) => handleParseMapText(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--color-border)',
+                      fontSize: '12px',
+                      marginBottom: '10px',
+                      background: 'var(--color-bg-base)',
+                      color: 'var(--color-text-main)',
+                      outline: 'none',
+                    }}
+                  />
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div>
+                      <span style={{ fontSize: '10.5px', fontWeight: '600', color: 'var(--color-text-dim)' }}>Latitude:</span>
+                      <input
+                        type="text"
+                        placeholder="-7.xxxxx"
+                        value={latitude || ''}
+                        onChange={(e) => setLatitude(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid var(--color-border)',
+                          fontSize: '12px',
+                          background: 'var(--color-bg-base)',
+                          color: 'var(--color-text-main)',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '10.5px', fontWeight: '600', color: 'var(--color-text-dim)' }}>Longitude:</span>
+                      <input
+                        type="text"
+                        placeholder="107.xxxxx"
+                        value={longitude || ''}
+                        onChange={(e) => setLongitude(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid var(--color-border)',
+                          fontSize: '12px',
+                          background: 'var(--color-bg-base)',
+                          color: 'var(--color-text-main)',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '8px', fontSize: '10.5px', color: 'var(--color-text-muted)' }}>
+                    💡 <b>Tips:</b> Buka Google Maps di HP/laptop, tekan lama di titik atap rumah Anda, salin angka koordinatnya lalu tempelkan di sini.
+                  </div>
+                </div>
+              )}
+
+              {/* Status Koordinat Terisi */}
               {latitude && longitude ? (
-                <div style={{ fontSize: '11.5px', color: 'var(--color-text-main)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>Lat: {Number(latitude).toFixed(5)}, Lng: {Number(longitude).toFixed(5)}</span>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-main)', marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>📍 {Number(latitude).toFixed(5)}, {Number(longitude).toFixed(5)}</span>
                   <a
                     href={`https://www.google.com/maps?q=${latitude},${longitude}`}
                     target="_blank"
@@ -781,8 +899,8 @@ export default function DashboardCustomer() {
                   </a>
                 </div>
               ) : (
-                <span style={{ fontSize: '11px', color: '#f59e0b' }}>
-                  *Tekan tombol di atas saat Anda sedang berada di rumah
+                <span style={{ fontSize: '11px', color: '#f59e0b', display: 'block', marginTop: '6px' }}>
+                  *Titik koordinat belum ditentukan (opsional tapi sangat membantu kurir)
                 </span>
               )}
             </div>
