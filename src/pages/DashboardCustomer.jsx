@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { authService } from '../services/authService';
 import { villageService } from '../services/villageService';
 import { getFriendlyErrorMessage } from '../utils/errorHandler';
+import { compressImageToWebP } from '../utils/imageCompressor';
 import Card from '../components/Card';
 import Input from '../components/Input';
 import Select from '../components/Select';
@@ -16,6 +17,7 @@ import Sidebar from '../components/Sidebar';
 export default function DashboardCustomer() {
   const navigate = useNavigate();
   const { profile, refreshProfile, isProfileComplete } = useAuth();
+  const fileInputRef = useRef(null);
 
   // Sidebar & Modal States
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -24,14 +26,23 @@ export default function DashboardCustomer() {
   const [noticeSheetOpen, setNoticeSheetOpen] = useState(false);
   const [noticeMessage, setNoticeMessage] = useState('');
 
-  // State Form Kelengkapan Profil
+  // State Form Profil, Foto & Alamat
   const [name, setName] = useState(profile?.nama || '');
   const [phone, setPhone] = useState(profile?.no_hp || '');
+  const [fotoUrl, setFotoUrl] = useState(profile?.foto_url || '');
+  const [compressingFoto, setCompressingFoto] = useState(false);
   const [selectedDesaId, setSelectedDesaId] = useState('');
   const [kampung, setKampung] = useState('');
   const [rt, setRt] = useState('');
   const [rw, setRw] = useState('');
   const [patokan, setPatokan] = useState('');
+
+  // State Titik Koordinat GPS
+  const [latitude, setLatitude] = useState(profile?.latitude || null);
+  const [longitude, setLongitude] = useState(profile?.longitude || null);
+  const [fetchingGps, setFetchingGps] = useState(false);
+
+  // State Saving
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Data 11 Desa Pelosok
@@ -49,15 +60,71 @@ export default function DashboardCustomer() {
     loadDesa();
   }, []);
 
-  // Sinkronisasi data awal jika profil berubah
+  // Sinkronisasi data saat profil diperbarui
   useEffect(() => {
     if (profile) {
       if (profile.nama && !name) setName(profile.nama);
       if (profile.no_hp && !phone) setPhone(profile.no_hp);
+      if (profile.foto_url) setFotoUrl(profile.foto_url);
+      if (profile.latitude) setLatitude(profile.latitude);
+      if (profile.longitude) setLongitude(profile.longitude);
     }
   }, [profile]);
 
-  // Handler Simpan Profil & Alamat
+  // Handler Pilih & Kompres Foto Profil ke WebP
+  const handleFotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setCompressingFoto(true);
+    try {
+      // Kompres otomatis ke WebP kualitas tinggi tapi ringan (< 35 KB)
+      const webpBase64 = await compressImageToWebP(file, 300, 0.8);
+      setFotoUrl(webpBase64);
+    } catch (err) {
+      showNotice(err.message || 'Gagal memproses foto. Silakan coba gambar lain.');
+    } finally {
+      setCompressingFoto(false);
+    }
+  };
+
+  // Handler Ambil Titik Koordinat GPS Rumah
+  const handleGetGpsLocation = () => {
+    if (!navigator.geolocation) {
+      showNotice('Fitur GPS tidak didukung di browser ini.');
+      return;
+    }
+
+    setFetchingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        setLatitude(lat);
+        setLongitude(lng);
+        setFetchingGps(false);
+      },
+      (error) => {
+        setFetchingGps(false);
+        let msg = 'Gagal mendeteksi lokasi GPS.';
+        if (error.code === error.PERMISSION_DENIED) {
+          msg = 'Izin akses lokasi ditolak. Silakan izinkan akses lokasi di browser HP Anda.';
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          msg = 'Sinyal GPS tidak tersedia saat ini.';
+        } else if (error.code === error.TIMEOUT) {
+          msg = 'Waktu pencarian GPS habis. Pastikan GPS HP Anda aktif.';
+        }
+        showNotice(msg);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 0,
+      }
+    );
+  };
+
+  // Handler Simpan Profil, Foto & Alamat
   const handleSaveProfile = async (e) => {
     e.preventDefault();
 
@@ -103,11 +170,14 @@ export default function DashboardCustomer() {
         phone: cleanPhone,
         address: formattedAddress,
         jalurId: chosenDesa?.jalur_id || null,
+        fotoUrl: fotoUrl || null,
+        latitude: latitude || null,
+        longitude: longitude || null,
       });
 
       await refreshProfile();
       setProfileSheetOpen(false);
-      showNotice('Data profil & alamat pengiriman Anda berhasil disimpan!');
+      showNotice('Data profil, foto, alamat & titik GPS berhasil disimpan!');
     } catch (err) {
       showNotice(getFriendlyErrorMessage(err));
     } finally {
@@ -139,78 +209,87 @@ export default function DashboardCustomer() {
   };
 
   return (
-    <div className="app-container" style={{ paddingBottom: '90px' }}>
-      {/* Top Bar Navigasi dengan Tombol Hamburger Sidebar */}
+    <div className="app-container" style={{ paddingBottom: '90px', paddingTop: '8px' }}>
+      {/* Top Bar Melayang Berbentuk Kapsul di Tengah Atas (Floating Capsule) */}
       <div
         style={{
+          width: '100%',
+          maxWidth: '440px',
+          margin: '0 auto 16px auto',
+          background: 'var(--color-bg-card)',
+          borderRadius: '999px',
+          padding: '6px 8px 6px 14px',
+          boxShadow: 'var(--skeuo-button-raised), 0 4px 18px rgba(0, 0, 0, 0.08)',
+          border: '1.5px solid var(--color-border)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '4px 0 14px 0',
+          backdropFilter: 'blur(8px)',
         }}
       >
-        {/* Tombol Hamburger Sidebar */}
-        <button
-          onClick={() => setSidebarOpen(true)}
-          title="Buka Menu Pengaturan & Sidebar"
-          style={{
-            width: '42px',
-            height: '42px',
-            borderRadius: '12px',
-            background: 'var(--color-bg-card)',
-            border: '1px solid var(--color-border)',
-            boxShadow: 'var(--skeuo-button-raised)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '20px',
-            cursor: 'pointer',
-            color: 'var(--color-primary-dark)',
-            transition: 'transform 0.15s ease',
-          }}
-          onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.92)')}
-          onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-        >
-          ☰
-        </button>
-
-        {/* Brand App di Header */}
+        {/* Brand Kiri di Kapsul */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <img
             src="/logo.webp"
             alt="Logo Jastip Pelosok"
             style={{ width: '28px', height: '28px', borderRadius: '8px', objectFit: 'contain' }}
           />
-          <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--color-primary-dark)', letterSpacing: '-0.3px' }}>
+          <span style={{ fontSize: '14.5px', fontWeight: '800', color: 'var(--color-primary-dark)', letterSpacing: '-0.3px' }}>
             Jastip Pelosok
           </span>
         </div>
 
-        {/* Profil Trigger */}
+        {/* Avatar Profil Kanan di Kapsul (Klik untuk Buka Drawer dari Kanan) */}
         <button
           onClick={() => setSidebarOpen(true)}
-          title="Buka Profil & Pengaturan"
+          title="Buka Menu & Pengaturan"
           style={{
-            width: '38px',
-            height: '38px',
-            borderRadius: '50%',
-            background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary) 100%)',
-            color: '#ffffff',
-            border: '2px solid rgba(255, 255, 255, 0.4)',
-            boxShadow: 'var(--skeuo-button-raised)',
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontWeight: '700',
-            fontSize: '15px',
-            cursor: 'pointer',
           }}
         >
-          {profile?.nama ? profile.nama.charAt(0).toUpperCase() : 'C'}
+          {profile?.foto_url ? (
+            <img
+              src={profile.foto_url}
+              alt={profile?.nama || 'Profil'}
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: '2px solid var(--color-primary)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary) 100%)',
+                color: '#ffffff',
+                border: '2px solid rgba(255, 255, 255, 0.5)',
+                boxShadow: 'var(--skeuo-button-raised)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: '800',
+                fontSize: '15px',
+              }}
+            >
+              {profile?.nama ? profile.nama.charAt(0).toUpperCase() : 'C'}
+            </div>
+          )}
         </button>
       </div>
 
-      {/* Top Welcome Banner Card (Bersih & Rapi Tanpa Tombol yang Menumpuk) */}
+      {/* Top Welcome Banner Card (Dengan Foto Profil Pengguna di Samping Tulisan Halo) */}
       <Card
         style={{
           background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary-dark) 100%)',
@@ -221,21 +300,43 @@ export default function DashboardCustomer() {
         }}
       >
         <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-          <img
-            src="/logo.webp"
-            alt="Logo Jastip Pelosok"
-            style={{
-              width: '50px',
-              height: '50px',
-              borderRadius: '16px',
-              objectFit: 'contain',
-              background: 'rgba(255, 255, 255, 0.2)',
-              border: '1.5px solid rgba(255, 255, 255, 0.4)',
-              padding: '2px',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.18)',
-            }}
-          />
-          <div style={{ flex: 1 }}>
+          {/* Foto Profil Pengguna (Menggantikan Logo Lama) */}
+          {profile?.foto_url ? (
+            <img
+              src={profile.foto_url}
+              alt={profile?.nama || 'Foto Profil'}
+              style={{
+                width: '56px',
+                height: '56px',
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: '2.5px solid rgba(255, 255, 255, 0.75)',
+                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.25)',
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: '56px',
+                height: '56px',
+                borderRadius: '50%',
+                background: 'rgba(255, 255, 255, 0.25)',
+                border: '2px solid rgba(255, 255, 255, 0.6)',
+                backdropFilter: 'blur(4px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '24px',
+                fontWeight: '800',
+                color: '#ffffff',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+              }}
+            >
+              {profile?.nama ? profile.nama.charAt(0).toUpperCase() : 'C'}
+            </div>
+          )}
+
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
               <span
                 style={{
@@ -279,7 +380,16 @@ export default function DashboardCustomer() {
               )}
             </div>
 
-            <h2 style={{ fontSize: '19px', fontWeight: '800', margin: '2px 0 0 0' }}>
+            <h2
+              style={{
+                fontSize: '19px',
+                fontWeight: '800',
+                margin: '2px 0 0 0',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
               Halo, {profile?.nama || 'Pelanggan'}! 👋
             </h2>
             <p style={{ fontSize: '12.5px', opacity: 0.9, marginTop: '3px' }}>
@@ -306,7 +416,7 @@ export default function DashboardCustomer() {
                 Lengkapi Alamat Pengiriman Anda
               </h4>
               <p style={{ fontSize: '12.5px', color: 'var(--color-text-main)', marginTop: '4px', lineHeight: '1.4' }}>
-                Sebelum bisa membuat pesanan jastip / kirim barang, mohon lengkapi nomor WhatsApp dan alamat rumah Anda terlebih dahulu.
+                Sebelum bisa membuat pesanan jastip / kirim barang, mohon lengkapi nomor WhatsApp, foto, dan alamat rumah Anda terlebih dahulu.
               </p>
               <div style={{ marginTop: '12px' }}>
                 <Button size="sm" onClick={() => setProfileSheetOpen(true)}>
@@ -317,7 +427,7 @@ export default function DashboardCustomer() {
           </div>
         </Card>
       ) : (
-        /* Card Alamat Tersimpan (Jika Sudah Lengkap) */
+        /* Card Alamat Tersimpan & Titik GPS (Jika Sudah Lengkap) */
         <Card
           style={{
             marginTop: '14px',
@@ -326,14 +436,36 @@ export default function DashboardCustomer() {
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
+            <div style={{ flex: 1, paddingRight: '10px' }}>
               <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-primary)', textTransform: 'uppercase' }}>
                 Alamat Rumah Pengiriman
               </span>
               <p style={{ fontSize: '13px', fontWeight: '600', color: 'var(--color-text-main)', marginTop: '4px', lineHeight: '1.4' }}>
                 {profile?.alamat}
               </p>
+
+              {/* Status Titik GPS Maps */}
+              {profile?.latitude && profile?.longitude ? (
+                <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '11.5px', color: '#16a34a', fontWeight: '700' }}>
+                    📍 Titik Koordinat GPS Tersimpan
+                  </span>
+                  <a
+                    href={`https://www.google.com/maps?q=${profile.latitude},${profile.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: '11.5px', color: 'var(--color-primary)', fontWeight: '700', textDecoration: 'underline' }}
+                  >
+                    (Cek Maps)
+                  </a>
+                </div>
+              ) : (
+                <div style={{ marginTop: '6px', fontSize: '11.5px', color: '#d97706', fontWeight: '600' }}>
+                  📍 Titik GPS belum diatur (Kurir butuh patokan manual)
+                </div>
+              )}
             </div>
+
             <button
               onClick={() => setProfileSheetOpen(true)}
               style={{
@@ -425,24 +557,124 @@ export default function DashboardCustomer() {
           <div style={{ display: 'flex', gap: '10px' }}>
             <span style={{ fontSize: '18px' }}>3️⃣</span>
             <div>
-              <b>Kurir Mengantar ke Rumah:</b> Kurir lokal membawa paket langsung ke alamat rumah Anda di pelosok.
+              <b>Kurir Mengantar ke Rumah:</b> Kurir lokal melihat rute di Maps dan membawa paket langsung ke rumah Anda.
             </div>
           </div>
         </div>
       </Card>
 
-      {/* Bottom Sheet: Form Lengkapi / Ubah Alamat Profil */}
+      {/* Bottom Sheet: Form Lengkapi / Ubah Profil, Foto & Titik GPS */}
       <BottomSheet
         isOpen={profileSheetOpen}
         onClose={() => setProfileSheetOpen(false)}
-        title={isProfileComplete ? 'Ubah Data Alamat' : 'Lengkapi Data Customer'}
+        title={isProfileComplete ? 'Edit Profil & Alamat' : 'Lengkapi Data Customer'}
       >
-        <div style={{ padding: '4px 0 16px 0' }}>
-          <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '14px' }}>
-            Data ini digunakan oleh kurir lokal untuk mengonfirmasi dan mengantar paket ke rumah Anda.
-          </p>
-
+        <div style={{ padding: '4px 0 20px 0' }}>
           <form onSubmit={handleSaveProfile}>
+            {/* Bagian 1: Upload / Ganti Foto Profil (Otomatis Kompres WebP) */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                marginBottom: '18px',
+                padding: '12px',
+                background: 'var(--color-bg-base)',
+                borderRadius: 'var(--radius-md)',
+                boxShadow: 'var(--skeuo-input-sunken)',
+              }}
+            >
+              <div style={{ position: 'relative', width: '74px', height: '74px', marginBottom: '8px' }}>
+                {fotoUrl ? (
+                  <img
+                    src={fotoUrl}
+                    alt="Preview Foto"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: '3px solid var(--color-primary)',
+                      boxShadow: 'var(--skeuo-button-raised)',
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary) 100%)',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '26px',
+                      fontWeight: '800',
+                      boxShadow: 'var(--skeuo-button-raised)',
+                    }}
+                  >
+                    {name ? name.charAt(0).toUpperCase() : '👤'}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Pilih Foto Baru"
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    right: 0,
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    background: 'var(--color-primary)',
+                    color: '#ffffff',
+                    border: '2px solid #ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                  }}
+                >
+                  📷
+                </button>
+              </div>
+
+              {/* Input File Tersembunyi */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFotoChange}
+                style={{ display: 'none' }}
+              />
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={compressingFoto}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-primary)',
+                  fontSize: '12.5px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                }}
+              >
+                {compressingFoto ? 'Mengompres foto ke WebP...' : '📷 Pilih / Ganti Foto Wajah (WebP Ringan)'}
+              </button>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginTop: '2px' }}>
+                Otomatis dikompres ringan untuk hemat kuota
+              </span>
+            </div>
+
+            {/* Bagian 2: Data Akun */}
             <Input
               label="Nama Lengkap"
               placeholder="Contoh: Ramon"
@@ -499,12 +731,68 @@ export default function DashboardCustomer() {
               />
             </div>
 
+            {/* Bagian 3: Titik Koordinat GPS Rumah untuk Kurir */}
+            <div
+              style={{
+                marginTop: '12px',
+                marginBottom: '14px',
+                padding: '12px 14px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--color-bg-base)',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--color-primary-dark)' }}>
+                  📍 TITIK KOORDINAT GPS RUMAH
+                </span>
+                {latitude && longitude && (
+                  <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: '700' }}>
+                    ✓ Terkunci
+                  </span>
+                )}
+              </div>
+
+              <p style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', margin: '0 0 10px 0', lineHeight: '1.4' }}>
+                Kurir akan memakai titik ini untuk navigasi Google Maps langsung ke depan pintu rumah Anda di pelosok.
+              </p>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                loading={fetchingGps}
+                onClick={handleGetGpsLocation}
+                style={{ width: '100%', marginBottom: '8px' }}
+              >
+                📍 Ambil Titik Rumah Saya Saat Ini (GPS HP)
+              </Button>
+
+              {latitude && longitude ? (
+                <div style={{ fontSize: '11.5px', color: 'var(--color-text-main)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Lat: {Number(latitude).toFixed(5)}, Lng: {Number(longitude).toFixed(5)}</span>
+                  <a
+                    href={`https://www.google.com/maps?q=${latitude},${longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: 'var(--color-primary)', fontWeight: '700', textDecoration: 'underline' }}
+                  >
+                    Buka di Maps ↗
+                  </a>
+                </div>
+              ) : (
+                <span style={{ fontSize: '11px', color: '#f59e0b' }}>
+                  *Tekan tombol di atas saat Anda sedang berada di rumah
+                </span>
+              )}
+            </div>
+
             <Input
               label="Catatan / Patokan Lokasi (Opsional)"
               placeholder="Contoh: Dekat sekolah MI / samping pos ronda"
               value={patokan}
               onChange={(e) => setPatokan(e.target.value)}
-              helperText="Membantu kurir menemukan rumah Anda lebih cepat"
+              helperText="Membantu kurir jika sinyal GPS sempat hilang di pedalaman"
             />
 
             <div style={{ marginTop: '20px' }}>
@@ -516,7 +804,7 @@ export default function DashboardCustomer() {
         </div>
       </BottomSheet>
 
-      {/* Drawer Sidebar Menu Samping (Pengaturan, Tema, Navigasi, Logout) */}
+      {/* Drawer Sidebar Menu Kanan (Pengaturan, Tema, Navigasi, Logout) */}
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}

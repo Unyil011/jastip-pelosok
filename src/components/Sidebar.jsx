@@ -48,20 +48,21 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
         }}
       />
 
-      {/* Drawer Sidebar Menu (Slide from Left) */}
+      {/* Drawer Sidebar Menu (Meluncur dari Kanan Layar) */}
       <div
         style={{
           position: 'fixed',
           top: 0,
           bottom: 0,
-          left: 0,
-          width: '82%',
+          right: 0,
+          left: 'auto',
+          width: '84%',
           maxWidth: '340px',
           background: 'var(--color-bg-card)',
-          boxShadow: 'var(--skeuo-button-raised), 10px 0 25px rgba(0,0,0,0.3)',
-          borderRight: '1px solid var(--color-border)',
+          boxShadow: 'var(--skeuo-button-raised), -10px 0 25px rgba(0,0,0,0.25)',
+          borderLeft: '1px solid var(--color-border)',
           zIndex: 1001,
-          transform: isOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
           display: 'flex',
           flexDirection: 'column',
@@ -71,7 +72,7 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
         {/* Header Drawer */}
         <div
           style={{
-            padding: '20px 18px 16px 18px',
+            padding: '18px 18px 14px 18px',
             borderBottom: '1px solid rgba(82, 99, 90, 0.12)',
             display: 'flex',
             alignItems: 'center',
@@ -83,31 +84,34 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
               src="/logo.webp"
               alt="Logo Jastip Pelosok"
               style={{
-                width: '38px',
-                height: '38px',
-                borderRadius: '12px',
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
                 objectFit: 'contain',
               }}
             />
             <div>
-              <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--color-primary-dark)', margin: 0 }}>
+              <h3 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--color-primary-dark)', margin: 0 }}>
                 Jastip Pelosok
               </h3>
               <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                Pengiriman & Jastip Naringgul
+                Pengaturan & Akun
               </span>
             </div>
           </div>
 
           <button
             onClick={onClose}
+            title="Tutup Menu"
             style={{
-              background: 'none',
-              border: 'none',
+              background: 'var(--color-bg-base)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '50%',
+              width: '32px',
+              height: '32px',
               color: 'var(--color-text-muted)',
-              fontSize: '20px',
+              fontSize: '16px',
               cursor: 'pointer',
-              padding: '6px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -117,37 +121,54 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
           </button>
         </div>
 
-        {/* Info Pengguna Terhubung */}
+        {/* Info Pengguna Terhubung dengan Foto Wajah */}
         <div
           style={{
-            padding: '16px 18px',
+            padding: '18px 18px',
             background: 'var(--color-bg-base)',
             borderBottom: '1px solid rgba(82, 99, 90, 0.12)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div
-              style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary) 100%)',
-                color: '#ffffff',
-                fontWeight: '800',
-                fontSize: '18px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: 'var(--skeuo-button-raised)',
-              }}
-            >
-              {profile?.nama ? profile.nama.charAt(0).toUpperCase() : 'C'}
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            {profile?.foto_url ? (
+              <img
+                src={profile.foto_url}
+                alt={profile?.nama || 'Foto Profil'}
+                style={{
+                  width: '52px',
+                  height: '52px',
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: '2.5px solid var(--color-primary)',
+                  boxShadow: 'var(--skeuo-button-raised)',
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: '52px',
+                  height: '52px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary) 100%)',
+                  color: '#ffffff',
+                  fontWeight: '800',
+                  fontSize: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: 'var(--skeuo-button-raised)',
+                  border: '2px solid rgba(255, 255, 255, 0.4)',
+                }}
+              >
+                {profile?.nama ? profile.nama.charAt(0).toUpperCase() : 'C'}
+              </div>
+            )}
+
             <div style={{ flex: 1, minWidth: 0 }}>
               <h4
                 style={{
-                  fontSize: '14.5px',
-                  fontWeight: '700',
+                  fontSize: '15px',
+                  fontWeight: '800',
                   color: 'var(--color-text-main)',
                   margin: 0,
                   whiteSpace: 'nowrap',
@@ -161,7 +182,7 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
                 style={{
                   fontSize: '12px',
                   color: 'var(--color-text-muted)',
-                  margin: '2px 0 0 0',
+                  margin: '3px 0 0 0',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -172,16 +193,16 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
             </div>
           </div>
 
-          <div style={{ marginTop: '10px' }}>
+          <div style={{ marginTop: '12px' }}>
             {isProfileComplete ? (
               <span
                 style={{
                   display: 'inline-block',
-                  fontSize: '10.5px',
+                  fontSize: '11px',
                   fontWeight: '700',
                   background: '#22c55e',
                   color: '#ffffff',
-                  padding: '3px 8px',
+                  padding: '3px 9px',
                   borderRadius: '999px',
                 }}
               >
@@ -191,11 +212,11 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
               <span
                 style={{
                   display: 'inline-block',
-                  fontSize: '10.5px',
+                  fontSize: '11px',
                   fontWeight: '700',
                   background: '#f59e0b',
                   color: '#ffffff',
-                  padding: '3px 8px',
+                  padding: '3px 9px',
                   borderRadius: '999px',
                 }}
               >
@@ -281,7 +302,7 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
             Pengaturan & Akun
           </div>
 
-          {/* Pengaturan Alamat */}
+          {/* Pengaturan Alamat & Foto Profil */}
           <button
             onClick={() => {
               onClose();
@@ -303,8 +324,8 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
               textAlign: 'left',
             }}
           >
-            <span style={{ fontSize: '18px' }}>🏡</span>
-            <span>Ubah Alamat & No WA</span>
+            <span style={{ fontSize: '18px' }}>👤</span>
+            <span>Edit Profil, Foto & Alamat</span>
           </button>
 
           {/* Pengaturan Dark/Light Mode */}

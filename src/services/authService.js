@@ -38,9 +38,9 @@ export const authService = {
 
     try {
       // 1. Cek apakah record profil sudah ada
-      const { data: existingProfile, error: fetchError } = await supabase
+      const { data: existingProfile } = await supabase
         .from('users')
-        .select('id, nama, no_hp, role, status_approval, jalur_id, alamat, nomor_dana')
+        .select('id, nama, no_hp, role, status_approval, jalur_id, alamat, nomor_dana, foto_url, latitude, longitude')
         .eq('id', user.id)
         .maybeSingle();
 
@@ -54,6 +54,8 @@ export const authService = {
         user.user_metadata?.name ||
         (user.email ? user.email.split('@')[0] : 'Customer');
 
+      const avatarFromGoogle = user.user_metadata?.avatar_url || user.user_metadata?.picture || null;
+
       const newProfile = {
         id: user.id,
         nama: defaultName,
@@ -61,12 +63,15 @@ export const authService = {
         role: 'customer',
         status_approval: 'approved',
         alamat: null,
+        foto_url: avatarFromGoogle,
+        latitude: null,
+        longitude: null,
       };
 
       const { data: createdProfile, error: insertError } = await supabase
         .from('users')
         .insert(newProfile)
-        .select('id, nama, no_hp, role, status_approval, jalur_id, alamat, nomor_dana')
+        .select('id, nama, no_hp, role, status_approval, jalur_id, alamat, nomor_dana, foto_url, latitude, longitude')
         .single();
 
       if (insertError) {
@@ -82,9 +87,9 @@ export const authService = {
   },
 
   /**
-   * Memperbarui data profil & alamat lengkap customer
+   * Memperbarui data profil, foto WebP, alamat lengkap & koordinat maps customer
    */
-  async updateCustomerProfile(userId, { name, phone, address, jalurId }) {
+  async updateCustomerProfile(userId, { name, phone, address, jalurId, fotoUrl, latitude, longitude }) {
     const cleanPhone = sanitizePhone(phone);
     const updates = {
       nama: name.trim(),
@@ -92,15 +97,16 @@ export const authService = {
       alamat: address.trim(),
     };
 
-    if (jalurId) {
-      updates.jalur_id = jalurId;
-    }
+    if (jalurId) updates.jalur_id = jalurId;
+    if (fotoUrl !== undefined) updates.foto_url = fotoUrl;
+    if (latitude !== undefined) updates.latitude = latitude;
+    if (longitude !== undefined) updates.longitude = longitude;
 
     const { data, error } = await supabase
       .from('users')
       .update(updates)
       .eq('id', userId)
-      .select('id, nama, no_hp, role, status_approval, jalur_id, alamat, nomor_dana')
+      .select('id, nama, no_hp, role, status_approval, jalur_id, alamat, nomor_dana, foto_url, latitude, longitude')
       .single();
 
     if (error) throw error;
@@ -126,7 +132,7 @@ export const authService = {
     // Ambil profil user
     const { data: profile, error: profileError } = await supabase
       .from('users')
-      .select('id, nama, no_hp, role, status_approval, jalur_id, alamat, nomor_dana')
+      .select('id, nama, no_hp, role, status_approval, jalur_id, alamat, nomor_dana, foto_url, latitude, longitude')
       .eq('id', userId)
       .single();
 
