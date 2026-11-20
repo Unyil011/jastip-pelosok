@@ -250,24 +250,41 @@ export default function DashboardCustomer() {
         }}
       >
         <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-          {/* Ikon Pengiriman Maskot 3D (Bukan Foto Pengguna Lagi agar Tidak Dobel) */}
-          <div
-            style={{
-              width: '56px',
-              height: '56px',
-              borderRadius: '16px',
-              background: 'rgba(255, 255, 255, 0.2)',
-              border: '2px solid rgba(255, 255, 255, 0.45)',
-              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.2)',
-              backdropFilter: 'blur(6px)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '28px',
-            }}
-          >
-            🛵
-          </div>
+          {/* Foto Profil Pengguna */}
+          {profile?.foto_url ? (
+            <img
+              src={profile.foto_url}
+              alt={profile?.nama || 'Foto Profil'}
+              style={{
+                width: '58px',
+                height: '58px',
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: '2.5px solid #ffffff',
+                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.25)',
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: '58px',
+                height: '58px',
+                borderRadius: '50%',
+                background: 'rgba(255, 255, 255, 0.22)',
+                border: '2.5px solid #ffffff',
+                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.2)',
+                backdropFilter: 'blur(6px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '24px',
+                fontWeight: '800',
+                color: '#ffffff',
+              }}
+            >
+              {profile?.nama ? profile.nama.charAt(0).toUpperCase() : '👤'}
+            </div>
+          )}
 
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
@@ -514,81 +531,93 @@ export default function DashboardCustomer() {
         </div>
       </Card>
 
-      {/* 5. Cek Estimasi Ongkir Cepat Antar Desa */}
+      {/* 5. Informasi Biaya Paket & Ongkir (Disesuaikan oleh Kurir) */}
       <Card
-        title="Cek Tarif Ongkir Antar Desa"
-        subtitle="Transparan tanpa biaya tersembunyi"
+        title="Informasi Biaya Paket & Ongkir"
+        subtitle="Dikonfirmasi langsung oleh kurir lapangan"
         style={{ marginBottom: '16px' }}
       >
-        <Select
-          label="Pilih Desa Tujuan"
-          placeholder="-- Pilih Salah Satu Desa --"
-          value={calcDesaId}
-          onChange={(e) => setCalcDesaId(e.target.value)}
-          options={desaList.map((d) => ({
-            value: d.id,
-            label: `Desa ${d.nama_desa}`,
-          }))}
-        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <p style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', margin: 0, lineHeight: '1.5' }}>
+            Biaya harga paket dan ongkir antaran ke pelosok dihitung dan disesuaikan langsung oleh kurir saat barang tiba atau diproses, sehingga lebih adil & transparan sesuai jarak desa.
+          </p>
 
-        {calcDesaId && (
+          {/* Kotak Contoh Perhitungan Nyata Sesuai Permintaan */}
           <div
             style={{
-              marginTop: '12px',
-              padding: '12px 14px',
+              padding: '14px',
               borderRadius: 'var(--radius-md)',
               background: 'var(--color-bg-base)',
               boxShadow: 'var(--skeuo-input-sunken)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
+              border: '1px solid rgba(82, 99, 90, 0.12)',
             }}
           >
-            <div>
-              <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', textTransform: 'uppercase', fontWeight: '700' }}>
-                Estimasi Biaya Jastip
-              </span>
-              <h4 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--color-primary-dark)', margin: '2px 0 0 0' }}>
-                Rp 10.000 <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--color-text-muted)' }}>/ paket</span>
-              </h4>
+            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-primary-dark)', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>
+              📋 Contoh Rincian Tagihan Kurir
             </div>
-            <span style={{ fontSize: '11px', fontWeight: '700', background: 'rgba(34, 197, 94, 0.15)', color: 'var(--color-primary)', padding: '4px 8px', borderRadius: '6px' }}>
-              Sampai Pintu Rumah
-            </span>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px' }}>
+              <span style={{ color: 'var(--color-text-muted)' }}>Jumlah Paket:</span>
+              <span style={{ fontWeight: '700', color: 'var(--color-text-main)' }}>2 Paket</span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px' }}>
+              <span style={{ color: 'var(--color-text-muted)' }}>Harga Barang (COD):</span>
+              <span style={{ fontWeight: '700', color: 'var(--color-text-main)' }}>Rp 100.000</span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '10px' }}>
+              <span style={{ color: 'var(--color-text-muted)' }}>Ongkir Antaran Kurir:</span>
+              <span style={{ fontWeight: '700', color: 'var(--color-primary)' }}>Rp 10.000</span>
+            </div>
+
+            <div
+              style={{
+                borderTop: '1px dashed var(--color-border)',
+                paddingTop: '8px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <span style={{ fontSize: '13px', fontWeight: '800', color: 'var(--color-text-main)' }}>Total Bayar di Tempat:</span>
+              <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--color-primary-dark)' }}>Rp 110.000</span>
+            </div>
           </div>
-        )}
+        </div>
       </Card>
 
-      {/* 6. Bantuan Cepat WhatsApp Admin Hub */}
-      <Card style={{ textAlign: 'center', padding: '18px' }}>
-        <h4 style={{ fontSize: '14.5px', fontWeight: '800', color: 'var(--color-primary-dark)', margin: 0 }}>
-          Punya Pertanyaan Seputar Paket?
-        </h4>
-        <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: '4px 0 12px 0' }}>
-          Admin kami siap membantu pengecekan resi belanjaan atau titip beli
-        </p>
-        <a
-          href="https://wa.me/6281234567890?text=Halo%20Admin%20Jastip%20Pelosok,%20saya%20mau%20tanya%20paket"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: '#25D366',
-            color: '#ffffff',
-            padding: '9px 18px',
-            borderRadius: 'var(--radius-md)',
-            fontWeight: '700',
-            fontSize: '13px',
-            textDecoration: 'none',
-            boxShadow: '0 4px 12px rgba(37, 211, 102, 0.35)',
-          }}
-        >
-          <span>💬</span>
-          <span>Chat WhatsApp Admin Hub</span>
-        </a>
-      </Card>
+      {/* 6. Floating Action Button (FAB) WhatsApp Admin Hub yang Mengambang Kekinian */}
+      <a
+        href="https://wa.me/6281234567890?text=Halo%20Admin%20Jastip%20Pelosok,%20saya%20mau%20tanya%20seputar%20paket"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Chat WhatsApp Admin Hub"
+        style={{
+          position: 'fixed',
+          bottom: '82px',
+          right: '18px',
+          width: '56px',
+          height: '56px',
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+          color: '#ffffff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '28px',
+          boxShadow: '0 6px 20px rgba(37, 211, 102, 0.5), inset 0 1px 2px rgba(255,255,255,0.4)',
+          border: '2px solid rgba(255, 255, 255, 0.4)',
+          zIndex: 99,
+          cursor: 'pointer',
+          textDecoration: 'none',
+          transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+        }}
+        onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.92)')}
+        onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+      >
+        💬
+      </a>
 
       {/* Bottom Sheet: Form Lengkapi / Ubah Profil, Foto & Titik GPS */}
       <BottomSheet

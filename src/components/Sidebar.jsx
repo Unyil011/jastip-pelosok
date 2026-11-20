@@ -320,8 +320,23 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
             <span>Keluar dari Akun</span>
           </button>
 
-          <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '11px', color: 'var(--color-text-dim)' }}>
-            Jastip Pelosok v1.0 • Kec. Naringgul
+          <div style={{ textAlign: 'center', marginTop: '14px', fontSize: '11.5px', color: 'var(--color-text-dim)', lineHeight: '1.6' }}>
+            <div><b>Jastip Pelosok</b> v1.0 • © 2026</div>
+            <div>
+              Dibuat oleh{' '}
+              <a
+                href="https://www.facebook.com/rival.cibonk.58?locale=id_ID"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  color: 'var(--color-primary-dark)',
+                  fontWeight: '800',
+                  textDecoration: 'underline',
+                }}
+              >
+                Rival Ram
+              </a>
+            </div>
           </div>
         </div>
       </div>

@@ -30,11 +30,13 @@ export default function CreateOrder() {
 
   // State Form
   const [jenisBarang, setJenisBarang] = useState('paket_ekspedisi'); // 'paket_ekspedisi' | 'titip_beli'
+  const [jumlahBarang, setJumlahBarang] = useState(1);
   const [nomorResi, setNomorResi] = useState('');
   const [deskripsiBarang, setDeskripsiBarang] = useState('');
   const [selectedDesaId, setSelectedDesaId] = useState('');
   const [alamatDetail, setAlamatDetail] = useState(profile?.alamat || '');
   const [metodePembayaran, setMetodePembayaran] = useState('COD'); // 'COD' | 'transfer'
+  const [copiedText, setCopiedText] = useState('');
 
   // Data Desa
   const [desaList, setDesaList] = useState([]);
@@ -61,6 +63,25 @@ export default function CreateOrder() {
     loadDesa();
   }, []);
 
+  // Otomatis memilih Desa Tujuan sesuai profil alamat pengguna
+  useEffect(() => {
+    if (desaList.length > 0 && profile?.alamat && !selectedDesaId) {
+      const match = desaList.find((d) =>
+        profile.alamat.toLowerCase().includes(d.nama_desa.toLowerCase())
+      );
+      if (match) {
+        setSelectedDesaId(match.id);
+      }
+    }
+  }, [desaList, profile?.alamat, selectedDesaId]);
+
+  // Update alamatDetail jika profile baru termuat
+  useEffect(() => {
+    if (profile?.alamat && !alamatDetail) {
+      setAlamatDetail(profile.alamat);
+    }
+  }, [profile?.alamat, alamatDetail]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -84,13 +105,15 @@ export default function CreateOrder() {
 
     try {
       const fullAddress = `${alamatDetail.trim()}, Desa ${chosenDesa.nama_desa}`;
+      const prefixJumlah = `[${jumlahBarang} ${jenisBarang === 'paket_ekspedisi' ? 'Paket' : 'Barang'}]`;
+      const deskripsiFinal = `${prefixJumlah} ${deskripsiBarang.trim() || (jenisBarang === 'paket_ekspedisi' ? 'Paket Ekspedisi' : 'Titip Barang')}`;
 
       await orderService.createOrderByCustomer({
         customerId: profile.id,
         jalurId: null, // Admin di hub yang menentukan pembagian jalur antaran
-        jenisBarang,
+        jenisBarang: jenisBarang === 'paket_ekspedisi' ? 'paket_ekspedisi' : 'titip_beli',
         nomorResi,
-        deskripsiBarang: jenisBarang === 'paket_ekspedisi' ? (deskripsiBarang || 'Paket Ekspedisi') : deskripsiBarang,
+        deskripsiBarang: deskripsiFinal,
         metodePembayaran,
         alamatTujuan: fullAddress,
       });
@@ -215,7 +238,7 @@ export default function CreateOrder() {
                     transition: 'all 0.2s ease',
                   }}
                 >
-                  🛒 Titip Beli
+                  🛍️ Titip Barang
                 </button>
               </div>
             </div>
@@ -224,15 +247,15 @@ export default function CreateOrder() {
             {jenisBarang === 'paket_ekspedisi' && (
               <Input
                 label="Nomor Resi Ekspedisi"
-                placeholder="Contoh: JP123456789 / JNT..."
+                placeholder="Contoh: JP123456789 / JNT / SPX..."
                 value={nomorResi}
                 onChange={(e) => setNomorResi(e.target.value)}
-                helperText="Masukkan nomor resi dari kurir pusat (J&T, SiCepat, Shopee, dll)"
+                helperText="Masukkan nomor resi dari Shopee, J&T, SiCepat, dll"
                 required
               />
             )}
 
-            {/* Input Deskripsi Barang */}
+            {/* Input Jumlah Paket / Barang */}
             <div style={{ marginBottom: '16px' }}>
               <label
                 style={{
@@ -243,15 +266,95 @@ export default function CreateOrder() {
                   marginBottom: '6px',
                 }}
               >
-                {jenisBarang === 'paket_ekspedisi' ? 'Catatan / Keterangan Barang' : 'Daftar Barang Titip Beli'}{' '}
+                Jumlah {jenisBarang === 'paket_ekspedisi' ? 'Paket' : 'Barang'} <span style={{ color: 'var(--color-danger)' }}>*</span>
+              </label>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    background: 'var(--color-bg-input)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid rgba(82, 99, 90, 0.22)',
+                    boxShadow: 'var(--skeuo-input-sunken)',
+                    padding: '4px',
+                    width: '140px',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setJumlahBarang((prev) => Math.max(1, prev - 1))}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: 'var(--color-bg-base)',
+                      boxShadow: 'var(--skeuo-button-raised)',
+                      fontSize: '18px',
+                      fontWeight: '800',
+                      color: 'var(--color-primary-dark)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    -
+                  </button>
+                  <span style={{ fontSize: '16px', fontWeight: '800', color: 'var(--color-text-main)' }}>
+                    {jumlahBarang}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setJumlahBarang((prev) => prev + 1)}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: 'var(--color-bg-base)',
+                      boxShadow: 'var(--skeuo-button-raised)',
+                      fontSize: '18px',
+                      fontWeight: '800',
+                      color: 'var(--color-primary-dark)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    +
+                  </button>
+                </div>
+                <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
+                  {jumlahBarang} {jenisBarang === 'paket_ekspedisi' ? 'paket diantar' : 'barang titipan'}
+                </span>
+              </div>
+            </div>
+
+            {/* Input Deskripsi / Catatan Barang */}
+            <div style={{ marginBottom: '16px' }}>
+              <label
+                style={{
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  color: 'var(--color-text-main)',
+                  display: 'block',
+                  marginBottom: '6px',
+                }}
+              >
+                {jenisBarang === 'paket_ekspedisi' ? 'Catatan / Keterangan Isi Paket' : 'Daftar Keterangan Barang Titipan'}{' '}
                 <span style={{ color: 'var(--color-danger)' }}>*</span>
               </label>
               <textarea
                 rows={3}
                 placeholder={
                   jenisBarang === 'paket_ekspedisi'
-                    ? 'Misal: Paket pakaian atas nama Budi'
-                    : 'Tuliskan daftar belanjaan, merk, dan jumlah barang'
+                    ? 'Misal: 2 paket baju kaos atas nama Budi'
+                    : 'Tuliskan nama barang, jenis belanjaan, dan keterangan toko'
                 }
                 value={deskripsiBarang}
                 onChange={(e) => setDeskripsiBarang(e.target.value)}
@@ -272,19 +375,25 @@ export default function CreateOrder() {
               />
             </div>
 
-            {/* Dropdown Desa Tujuan */}
-            <Select
-              label="Desa Tujuan Pengantaran"
-              placeholder="-- Pilih Desa Tujuan --"
-              required
-              value={selectedDesaId}
-              onChange={(e) => setSelectedDesaId(e.target.value)}
-              options={desaList.map((d) => ({
-                value: d.id,
-                label: `Desa ${d.nama_desa}`,
-              }))}
-              helperText="Jalur kurir akan otomatis ditentukan sesuai desa ini"
-            />
+            {/* Dropdown Desa Tujuan (Auto-Terpilih dari Profil) */}
+            <div style={{ marginBottom: '16px' }}>
+              <Select
+                label="Desa Tujuan Pengantaran"
+                placeholder="-- Pilih Desa Tujuan --"
+                required
+                value={selectedDesaId}
+                onChange={(e) => setSelectedDesaId(e.target.value)}
+                options={desaList.map((d) => ({
+                  value: d.id,
+                  label: `Desa ${d.nama_desa}`,
+                }))}
+                helperText={
+                  selectedDesaId
+                    ? '✓ Otomatis terisi sesuai desa di alamat profil Anda'
+                    : 'Pilih desa tujuan pengantaran paket'
+                }
+              />
+            </div>
 
             {/* Alamat Lengkap */}
             <Input
@@ -296,7 +405,7 @@ export default function CreateOrder() {
             />
 
             {/* Metode Pembayaran */}
-            <div style={{ marginBottom: '22px' }}>
+            <div style={{ marginBottom: '18px' }}>
               <label
                 style={{
                   fontSize: '13px',
@@ -306,7 +415,7 @@ export default function CreateOrder() {
                   marginBottom: '8px',
                 }}
               >
-                Metode Pembayaran Ongkir <span style={{ color: 'var(--color-danger)' }}>*</span>
+                Metode Pembayaran Ongkir & Paket <span style={{ color: 'var(--color-danger)' }}>*</span>
               </label>
 
               <div style={{ display: 'flex', gap: '10px' }}>
@@ -376,6 +485,156 @@ export default function CreateOrder() {
                   🏦 Transfer Bank / DANA
                 </label>
               </div>
+
+              {/* Box Rincian Pembayaran Transfer & Barcode DANA */}
+              {metodePembayaran === 'transfer' && (
+                <div
+                  style={{
+                    marginTop: '14px',
+                    padding: '16px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--color-bg-base)',
+                    boxShadow: 'var(--skeuo-input-sunken)',
+                    border: '1.5px solid var(--color-primary)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '20px' }}>📲</span>
+                    <div>
+                      <h4 style={{ fontSize: '13.5px', fontWeight: '800', color: 'var(--color-primary-dark)', margin: 0 }}>
+                        Informasi Barcode & Akun Pembayaran Kurir
+                      </h4>
+                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                        Nomor dan barcode sesuai rekening resmi pengelola kurir pelosok
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Simulasi Visual Barcode / QRIS Box */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      background: '#ffffff',
+                      padding: '12px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #d1d5db',
+                      marginBottom: '12px',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '100%',
+                        maxWidth: '240px',
+                        height: '52px',
+                        background: 'repeating-linear-gradient(90deg, #111 0, #111 2px, #fff 2px, #fff 4px, #111 4px, #111 7px, #fff 7px, #fff 9px, #111 9px, #111 13px, #fff 13px, #fff 15px, #111 15px, #111 19px, #fff 19px, #fff 21px, #111 21px, #111 26px)',
+                        borderRadius: '3px',
+                        marginBottom: '6px',
+                      }}
+                    />
+                    <span style={{ fontSize: '10.5px', fontWeight: '800', color: '#1f2937', letterSpacing: '2.5px' }}>
+                      * JP-DANA-NARINGGUL-2026 *
+                    </span>
+                  </div>
+
+                  {/* Nomor Rekening & DANA */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '9px 12px',
+                        borderRadius: '6px',
+                        background: 'rgba(34, 197, 94, 0.1)',
+                        border: '1px solid rgba(34, 197, 94, 0.25)',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-primary-dark)' }}>
+                          DANA / E-Wallet:
+                        </div>
+                        <div style={{ fontSize: '14.5px', fontWeight: '800', color: 'var(--color-text-main)' }}>
+                          0812-0983-212
+                        </div>
+                        <div style={{ fontSize: '10.5px', color: 'var(--color-text-muted)' }}>
+                          a/n Jastip Pelosok (Rival Ram)
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard?.writeText('08120983212');
+                          setCopiedText('DANA');
+                          setTimeout(() => setCopiedText(''), 2000);
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          background: 'var(--color-primary)',
+                          color: '#fff',
+                          border: 'none',
+                          fontSize: '11.5px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {copiedText === 'DANA' ? '✓ Tersalin!' : 'Salin'}
+                      </button>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '9px 12px',
+                        borderRadius: '6px',
+                        background: 'var(--color-bg-card)',
+                        border: '1px solid var(--color-border)',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-text-dim)' }}>
+                          Rekening Bank BRI:
+                        </div>
+                        <div style={{ fontSize: '14.5px', fontWeight: '800', color: 'var(--color-text-main)' }}>
+                          4123-0100-8899-532
+                        </div>
+                        <div style={{ fontSize: '10.5px', color: 'var(--color-text-muted)' }}>
+                          a/n Jastip Pelosok
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard?.writeText('412301008899532');
+                          setCopiedText('BRI');
+                          setTimeout(() => setCopiedText(''), 2000);
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          background: 'var(--color-bg-base)',
+                          color: 'var(--color-text-main)',
+                          border: '1px solid var(--color-border)',
+                          fontSize: '11.5px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {copiedText === 'BRI' ? '✓ Tersalin!' : 'Salin'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', margin: '10px 0 0 0', lineHeight: '1.4' }}>
+                    💡 <i>Harga paket & ongkir akan dikonfirmasi kurir saat pesanan diproses. Anda bisa transfer sesudah kurir memberi tahu nominal pasti.</i>
+                  </p>
+                </div>
+              )}
             </div>
 
             <Button type="submit" loading={submitting}>
