@@ -189,7 +189,6 @@ export default function DashboardCustomer() {
         name: name.trim(),
         phone: cleanPhone,
         address: formattedAddress,
-        jalurId: chosenDesa?.jalur_id || null,
         fotoUrl: fotoUrl || null,
         latitude: latitude ? parseFloat(latitude) : null,
         longitude: longitude ? parseFloat(longitude) : null,

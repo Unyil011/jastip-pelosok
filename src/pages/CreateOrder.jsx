@@ -65,11 +65,11 @@ export default function CreateOrder() {
       return;
     }
 
-    // Temukan data desa yang dipilih untuk mengambil jalur_id secara background
+    // Temukan data desa yang dipilih
     const chosenDesa = desaList.find((d) => d.id === selectedDesaId);
-    if (!chosenDesa || !chosenDesa.jalur_id) {
+    if (!chosenDesa) {
       setSheetType('error');
-      setSheetMessage('Jalur pengiriman desa ini belum ditentukan oleh admin.');
+      setSheetMessage('Silakan pilih desa tujuan pengiriman.');
       setSheetOpen(true);
       return;
     }
@@ -81,7 +81,7 @@ export default function CreateOrder() {
 
       await orderService.createOrderByCustomer({
         customerId: profile.id,
-        jalurId: chosenDesa.jalur_id, // otomatis terisi di background
+        jalurId: null, // Admin di hub yang menentukan pembagian jalur antaran
         jenisBarang,
         nomorResi,
         deskripsiBarang: jenisBarang === 'paket_ekspedisi' ? (deskripsiBarang || 'Paket Ekspedisi') : deskripsiBarang,
