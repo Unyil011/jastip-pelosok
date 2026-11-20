@@ -103,9 +103,9 @@ export default function Login() {
         {/* 3D App Icon Badge */}
         <div
           style={{
-            width: '74px',
-            height: '74px',
-            borderRadius: '22px',
+            width: '82px',
+            height: '82px',
+            borderRadius: '24px',
             background: 'linear-gradient(135deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.08) 100%)',
             boxShadow: '0 8px 24px rgba(0, 0, 0, 0.22)',
             backdropFilter: 'blur(10px)',
@@ -113,11 +113,16 @@ export default function Login() {
             alignItems: 'center',
             justifyContent: 'center',
             margin: '0 auto 16px auto',
-            fontSize: '38px',
             border: '2px solid rgba(255, 255, 255, 0.45)',
+            overflow: 'hidden',
+            padding: '4px',
           }}
         >
-          📦
+          <img
+            src="/logo.webp"
+            alt="Logo Jastip Pelosok"
+            style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '18px' }}
+          />
         </div>
 
         <span

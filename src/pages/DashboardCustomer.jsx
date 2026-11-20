@@ -153,56 +153,72 @@ export default function DashboardCustomer() {
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: '700',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.6px',
-                  background: 'rgba(255, 255, 255, 0.2)',
-                  padding: '2px 8px',
-                  borderRadius: '999px',
-                }}
-              >
-                Customer
-              </span>
-              {isProfileComplete ? (
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <img
+              src="/logo.webp"
+              alt="Logo Jastip Pelosok"
+              style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '14px',
+                objectFit: 'contain',
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: '1.5px solid rgba(255, 255, 255, 0.4)',
+                padding: '2px',
+                boxShadow: '0 4px 10px rgba(0, 0, 0, 0.15)',
+              }}
+            />
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
                 <span
                   style={{
                     fontSize: '11px',
                     fontWeight: '700',
-                    background: '#22c55e',
-                    color: '#ffffff',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.6px',
+                    background: 'rgba(255, 255, 255, 0.2)',
                     padding: '2px 8px',
                     borderRadius: '999px',
                   }}
                 >
-                  ✓ Alamat Lengkap
+                  Customer
                 </span>
-              ) : (
-                <span
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: '700',
-                    background: '#f59e0b',
-                    color: '#ffffff',
-                    padding: '2px 8px',
-                    borderRadius: '999px',
-                  }}
-                >
-                  ⚠️ Belum Lengkap
-                </span>
-              )}
-            </div>
+                {isProfileComplete ? (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      background: '#22c55e',
+                      color: '#ffffff',
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                    }}
+                  >
+                    ✓ Alamat Lengkap
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      background: '#f59e0b',
+                      color: '#ffffff',
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                    }}
+                  >
+                    ⚠️ Belum Lengkap
+                  </span>
+                )}
+              </div>
 
-            <h2 style={{ fontSize: '20px', fontWeight: '800', margin: '2px 0 0 0' }}>
-              Halo, {profile?.nama || 'Pelanggan'}! 👋
-            </h2>
-            <p style={{ fontSize: '12.5px', opacity: 0.9, marginTop: '4px' }}>
-              {profile?.no_hp ? `📱 WA: ${profile.no_hp}` : 'Nomor WhatsApp belum diisi'}
-            </p>
+              <h2 style={{ fontSize: '18px', fontWeight: '800', margin: '2px 0 0 0' }}>
+                Halo, {profile?.nama || 'Pelanggan'}! 👋
+              </h2>
+              <p style={{ fontSize: '12px', opacity: 0.9, marginTop: '2px' }}>
+                {profile?.no_hp ? `📱 WA: ${profile.no_hp}` : 'Nomor WhatsApp belum diisi'}
+              </p>
+            </div>
           </div>
 
           {/* Tombol Pengaturan Baru (Menggantikan Tombol Keluar Langsung) */}
@@ -463,6 +479,22 @@ export default function DashboardCustomer() {
         title="Pengaturan"
       >
         <div style={{ padding: '8px 0 16px 0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Header Aplikasi di Settings */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingBottom: '12px', borderBottom: '1px solid rgba(82, 99, 90, 0.12)' }}>
+            <img
+              src="/logo.webp"
+              alt="Logo Jastip Pelosok"
+              style={{ width: '42px', height: '42px', borderRadius: '12px', objectFit: 'contain' }}
+            />
+            <div>
+              <h3 style={{ fontSize: '15px', fontWeight: '800', margin: 0, color: 'var(--color-primary-dark)' }}>
+                Jastip Pelosok
+              </h3>
+              <span style={{ fontSize: '11.5px', color: 'var(--color-text-muted)' }}>
+                Layanan Antar Paket Kec. Naringgul
+              </span>
+            </div>
+          </div>
           {/* Pengaturan Tema (Dark/Light Mode) */}
           <div
             style={{
