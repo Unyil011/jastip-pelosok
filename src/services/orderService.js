@@ -157,19 +157,22 @@ export const orderService = {
   },
 
   /**
-   * Kurir: Ambil Order Aktif di Jalur Kurir (status 'diterima_hub' atau 'dalam_perjalanan')
+   * Kurir: Ambil Order Aktif di Jalur Kurir (status 'diterima_hub', 'dalam_perjalanan', atau 'terkirim')
+   * Termasuk koordinat GPS rumah customer untuk navigasi peta multi-drop
    */
   async getOrdersForKurir(jalurId) {
-    if (!jalurId) return [];
-
-    const { data, error } = await supabase
+    let query = supabase
       .from('orders')
-      .select('*, customer:customer_id (nama, no_hp, alamat)')
-      .eq('jalur_id', jalurId)
+      .select('*, customer:customer_id (nama, no_hp, alamat, latitude, longitude), jalur:jalur_id (nama_jalur)')
       .eq('status_konfirmasi', 'dikonfirmasi')
-      .in('status_pengiriman', ['diterima_hub', 'dalam_perjalanan'])
+      .in('status_pengiriman', ['diterima_hub', 'dalam_perjalanan', 'terkirim'])
       .order('created_at', { ascending: true });
 
+    if (jalurId) {
+      query = query.eq('jalur_id', jalurId);
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   },

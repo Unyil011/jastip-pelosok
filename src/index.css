@@ -97,3 +97,23 @@ body {
   background: rgba(82, 99, 90, 0.3);
   border-radius: 10px;
 }
+
+/* Animasi Denyut GPS Kurir Bergerak */
+@keyframes courierPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.6), 0 4px 12px rgba(0,0,0,0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(37, 99, 235, 0), 0 4px 12px rgba(0,0,0,0.4);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0), 0 4px 12px rgba(0,0,0,0.4);
+  }
+}
+
+/* Custom styling Leaflet divIcon */
+.custom-pelosok-pin, .courier-live-pin {
+  background: transparent !important;
+  border: none !important;
+}
+
