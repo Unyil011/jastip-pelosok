@@ -560,7 +560,7 @@ export default function CreateOrder() {
                 </label>
               </div>
 
-              {/* Box Rincian Pembayaran Transfer & Barcode DANA */}
+              {/* Box Rincian Pembayaran Transfer & QR Code DANA */}
               {metodePembayaran === 'transfer' && (
                 <div
                   style={{
@@ -576,40 +576,128 @@ export default function CreateOrder() {
                     <span style={{ fontSize: '20px' }}>📲</span>
                     <div>
                       <h4 style={{ fontSize: '13.5px', fontWeight: '800', color: 'var(--color-primary-dark)', margin: 0 }}>
-                        Informasi Barcode & Akun Pembayaran Kurir
+                        Informasi QR Code & Akun Pembayaran
                       </h4>
                       <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                        Nomor dan barcode sesuai rekening resmi pengelola kurir pelosok
+                        Pindai QR Code atau transfer ke rekening resmi pengelola
                       </span>
                     </div>
                   </div>
 
-                  {/* Simulasi Visual Barcode / QRIS Box */}
+                  {/* Visual QR Code (QRIS / DANA) */}
                   <div
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
                       background: '#ffffff',
-                      padding: '12px 14px',
-                      borderRadius: '8px',
+                      padding: '16px 14px',
+                      borderRadius: '12px',
                       border: '1px solid #d1d5db',
                       marginBottom: '12px',
                       textAlign: 'center',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                     }}
                   >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '900', color: '#111827', letterSpacing: '1px' }}>
+                        QRIS / DANA
+                      </span>
+                      <span style={{ fontSize: '10px', background: '#dcfce7', color: '#15803d', padding: '2px 7px', borderRadius: '4px', fontWeight: '700' }}>
+                        SCAN BAYAR
+                      </span>
+                    </div>
+
                     <div
                       style={{
-                        width: '100%',
-                        maxWidth: '240px',
-                        height: '52px',
-                        background: 'repeating-linear-gradient(90deg, #111 0, #111 2px, #fff 2px, #fff 4px, #111 4px, #111 7px, #fff 7px, #fff 9px, #111 9px, #111 13px, #fff 13px, #fff 15px, #111 15px, #111 19px, #fff 19px, #fff 21px, #111 21px, #111 26px)',
-                        borderRadius: '3px',
-                        marginBottom: '6px',
+                        position: 'relative',
+                        width: '165px',
+                        height: '165px',
+                        background: '#ffffff',
+                        padding: '8px',
+                        borderRadius: '10px',
+                        border: '1.5px solid #e5e7eb',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                       }}
-                    />
-                    <span style={{ fontSize: '10.5px', fontWeight: '800', color: '#1f2937', letterSpacing: '2.5px' }}>
-                      * JP-DANA-NARINGGUL-2026 *
+                    >
+                      {/* SVG QR Code yang Tajam & Standar */}
+                      <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%' }}>
+                        {/* Finder Pattern Top-Left */}
+                        <rect x="5" y="5" width="24" height="24" rx="2" fill="#111827" />
+                        <rect x="9" y="9" width="16" height="16" rx="1" fill="#ffffff" />
+                        <rect x="13" y="13" width="8" height="8" rx="1" fill="#111827" />
+
+                        {/* Finder Pattern Top-Right */}
+                        <rect x="71" y="5" width="24" height="24" rx="2" fill="#111827" />
+                        <rect x="75" y="9" width="16" height="16" rx="1" fill="#ffffff" />
+                        <rect x="79" y="13" width="8" height="8" rx="1" fill="#111827" />
+
+                        {/* Finder Pattern Bottom-Left */}
+                        <rect x="5" y="71" width="24" height="24" rx="2" fill="#111827" />
+                        <rect x="9" y="75" width="16" height="16" rx="1" fill="#ffffff" />
+                        <rect x="13" y="79" width="8" height="8" rx="1" fill="#111827" />
+
+                        {/* Timing Lines */}
+                        <line x1="33" y1="17" x2="67" y2="17" stroke="#111827" strokeWidth="2.5" strokeDasharray="3 3" />
+                        <line x1="17" y1="33" x2="17" y2="67" stroke="#111827" strokeWidth="2.5" strokeDasharray="3 3" />
+
+                        {/* Data Matrix Bits */}
+                        <rect x="35" y="7" width="5" height="5" fill="#111827" />
+                        <rect x="45" y="7" width="5" height="5" fill="#111827" />
+                        <rect x="55" y="7" width="5" height="5" fill="#111827" />
+                        <rect x="40" y="23" width="5" height="5" fill="#111827" />
+                        <rect x="50" y="23" width="5" height="5" fill="#111827" />
+                        <rect x="60" y="23" width="5" height="5" fill="#111827" />
+                        <rect x="7" y="35" width="5" height="5" fill="#111827" />
+                        <rect x="7" y="45" width="5" height="5" fill="#111827" />
+                        <rect x="7" y="55" width="5" height="5" fill="#111827" />
+                        <rect x="23" y="40" width="5" height="5" fill="#111827" />
+                        <rect x="23" y="50" width="5" height="5" fill="#111827" />
+                        <rect x="23" y="60" width="5" height="5" fill="#111827" />
+
+                        {/* Dense Matrix Data Area */}
+                        <rect x="35" y="35" width="6" height="6" fill="#111827" />
+                        <rect x="45" y="35" width="5" height="5" fill="#111827" />
+                        <rect x="55" y="35" width="6" height="6" fill="#111827" />
+                        <rect x="65" y="35" width="5" height="5" fill="#111827" />
+                        <rect x="75" y="35" width="6" height="6" fill="#111827" />
+                        <rect x="85" y="35" width="5" height="5" fill="#111827" />
+
+                        <rect x="35" y="45" width="5" height="5" fill="#111827" />
+                        <rect x="55" y="45" width="5" height="5" fill="#111827" />
+                        <rect x="75" y="45" width="5" height="5" fill="#111827" />
+                        <rect x="85" y="45" width="6" height="6" fill="#111827" />
+
+                        <rect x="35" y="55" width="6" height="6" fill="#111827" />
+                        <rect x="45" y="55" width="5" height="5" fill="#111827" />
+                        <rect x="65" y="55" width="6" height="6" fill="#111827" />
+                        <rect x="85" y="55" width="5" height="5" fill="#111827" />
+
+                        <rect x="35" y="65" width="5" height="5" fill="#111827" />
+                        <rect x="55" y="65" width="6" height="6" fill="#111827" />
+                        <rect x="65" y="65" width="5" height="5" fill="#111827" />
+                        <rect x="75" y="65" width="6" height="6" fill="#111827" />
+
+                        <rect x="35" y="75" width="6" height="6" fill="#111827" />
+                        <rect x="45" y="75" width="5" height="5" fill="#111827" />
+                        <rect x="65" y="75" width="5" height="5" fill="#111827" />
+                        <rect x="85" y="75" width="6" height="6" fill="#111827" />
+
+                        <rect x="35" y="85" width="5" height="5" fill="#111827" />
+                        <rect x="55" y="85" width="6" height="6" fill="#111827" />
+                        <rect x="75" y="85" width="5" height="5" fill="#111827" />
+                        <rect x="85" y="85" width="6" height="6" fill="#111827" />
+
+                        {/* Center Badge DANA */}
+                        <rect x="41" y="41" width="18" height="18" rx="4" fill="#0284c7" stroke="#ffffff" strokeWidth="1.5" />
+                        <text x="50" y="53.5" fill="#ffffff" fontSize="9.5" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">DANA</text>
+                      </svg>
+                    </div>
+
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#4b5563', marginTop: '8px' }}>
+                      Pindai QR lewat DANA, BCA, GoPay, atau ShopeePay
                     </span>
                   </div>
 

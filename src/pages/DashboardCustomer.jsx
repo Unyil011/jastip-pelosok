@@ -56,6 +56,62 @@ export default function DashboardCustomer() {
   // Data 11 Desa Pelosok
   const [desaList, setDesaList] = useState([]);
 
+  // Fungsi untuk mem-parsing dan mengisi form dari data profile yang sudah tersimpan
+  const populateFormFromProfile = (prof = profile, list = desaList) => {
+    if (!prof) return;
+    if (prof.nama) setName(prof.nama);
+    if (prof.no_hp) setPhone(prof.no_hp);
+    if (prof.foto_url) setFotoUrl(prof.foto_url);
+    if (prof.latitude) setLatitude(prof.latitude);
+    if (prof.longitude) setLongitude(prof.longitude);
+
+    if (prof.alamat) {
+      const full = prof.alamat;
+
+      // 1. Ekstrak patokan jika ada (di dalam kurung "Patokan: ...")
+      const patokanMatch = full.match(/\(Patokan:\s*([^)]+)\)/i);
+      if (patokanMatch) {
+        setPatokan(patokanMatch[1].trim());
+      }
+
+      // Bersihkan teks patokan untuk ekstraksi data alamat utama
+      const clean = full.split('(')[0].trim();
+
+      // 2. Ekstrak Desa yang cocok
+      if (list && list.length > 0) {
+        const matchedDesa = list.find((d) =>
+          clean.toLowerCase().includes(d.nama_desa.toLowerCase())
+        );
+        if (matchedDesa) {
+          setSelectedDesaId(matchedDesa.id);
+        }
+      }
+
+      // 3. Ekstrak RT
+      const rtMatch = clean.match(/RT\s*(\d+)/i);
+      if (rtMatch) {
+        setRt(rtMatch[1].trim());
+      }
+
+      // 4. Ekstrak RW
+      const rwMatch = clean.match(/RW\s*(\d+)/i);
+      if (rwMatch) {
+        setRw(rwMatch[1].trim());
+      }
+
+      // 5. Ekstrak Kampung
+      const kpMatch = clean.match(/(?:Kp\.|Kampung)\s*([^,]+)/i);
+      if (kpMatch) {
+        setKampung(kpMatch[1].trim());
+      } else {
+        const firstPart = clean.split(',')[0].trim();
+        if (firstPart && !firstPart.toLowerCase().includes('desa')) {
+          setKampung(firstPart.replace(/^(?:Kp\.|Kampung)\s*/i, '').trim());
+        }
+      }
+    }
+  };
+
   useEffect(() => {
     async function loadInitialData() {
       try {
@@ -68,6 +124,7 @@ export default function DashboardCustomer() {
             (o) => o.status_pengiriman !== 'sampai_tujuan' && o.status_konfirmasi !== 'ditolak'
           );
           setActiveOrder(active || null);
+          populateFormFromProfile(profile, list);
         }
       } catch (err) {
         console.error('Gagal memuat data awal:', err);
@@ -78,16 +135,19 @@ export default function DashboardCustomer() {
     loadInitialData();
   }, [profile?.id]);
 
-  // Sinkronisasi data saat profil diperbarui
+  // Sinkronisasi data saat profil atau daftar desa diperbarui
   useEffect(() => {
     if (profile) {
-      if (profile.nama && !name) setName(profile.nama);
-      if (profile.no_hp && !phone) setPhone(profile.no_hp);
-      if (profile.foto_url) setFotoUrl(profile.foto_url);
-      if (profile.latitude) setLatitude(profile.latitude);
-      if (profile.longitude) setLongitude(profile.longitude);
+      populateFormFromProfile(profile, desaList);
     }
-  }, [profile]);
+  }, [profile, desaList]);
+
+  // Setiap kali form Edit Profil dibuka, pastikan data yang tersimpan langsung muncul utuh
+  useEffect(() => {
+    if (profileSheetOpen) {
+      populateFormFromProfile(profile, desaList);
+    }
+  }, [profileSheetOpen]);
 
   // Handler Pilih & Kompres Foto Profil ke WebP
   const handleFotoChange = async (e) => {
@@ -173,27 +233,29 @@ export default function DashboardCustomer() {
       return;
     }
 
-    if (!selectedDesaId) {
-      showNotice('Silakan pilih Desa tempat tinggal Anda.');
-      return;
-    }
+    // Susun alamat pengiriman
+    let formattedAddress = profile?.alamat || '';
+    if (selectedDesaId && kampung.trim() && rt.trim() && rw.trim()) {
+      const chosenDesa = desaList.find((d) => d.id === selectedDesaId);
+      const namaDesa = chosenDesa ? chosenDesa.nama_desa : '';
 
-    if (!kampung.trim()) {
-      showNotice('Nama Kampung / Dusun wajib diisi.');
-      return;
-    }
-
-    if (!rt.trim() || !rw.trim()) {
-      showNotice('Nomor RT dan RW wajib diisi.');
-      return;
-    }
-
-    const chosenDesa = desaList.find((d) => d.id === selectedDesaId);
-    const namaDesa = chosenDesa ? chosenDesa.nama_desa : '';
-
-    let formattedAddress = `Kp. ${kampung.trim()}, RT ${rt.trim().padStart(2, '0')}/RW ${rw.trim().padStart(2, '0')}, Desa ${namaDesa}`;
-    if (patokan.trim()) {
-      formattedAddress += ` (Patokan: ${patokan.trim()})`;
+      formattedAddress = `Kp. ${kampung.trim()}, RT ${rt.trim().padStart(2, '0')}/RW ${rw.trim().padStart(2, '0')}, Desa ${namaDesa}`;
+      if (patokan.trim()) {
+        formattedAddress += ` (Patokan: ${patokan.trim()})`;
+      }
+    } else if (!formattedAddress) {
+      if (!selectedDesaId) {
+        showNotice('Silakan pilih Desa tempat tinggal Anda.');
+        return;
+      }
+      if (!kampung.trim()) {
+        showNotice('Nama Kampung / Dusun wajib diisi.');
+        return;
+      }
+      if (!rt.trim() || !rw.trim()) {
+        showNotice('Nomor RT dan RW wajib diisi.');
+        return;
+      }
     }
 
     setSavingProfile(true);
