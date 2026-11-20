@@ -70,7 +70,6 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
-          <TopHeader />
           <Routes>
             {/* Public Auth Routes */}
             <Route path="/" element={<Navigate to="/login" replace />} />

@@ -7,6 +7,7 @@ import Card from '../components/Card';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import BottomSheet from '../components/BottomSheet';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -64,6 +65,11 @@ export default function Login() {
 
   return (
     <div className="app-container-no-nav" style={{ justifyContent: 'center', paddingBottom: '32px' }}>
+      {/* Top Header Switcher */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px', width: '100%' }}>
+        <ThemeToggle />
+      </div>
+
       {/* Hero Visual Card (Trend Aplikasi Modern ala Wayfare) */}
       <div
         style={{

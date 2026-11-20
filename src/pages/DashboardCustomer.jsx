@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../hooks/useTheme';
 import { authService } from '../services/authService';
 import { villageService } from '../services/villageService';
+import { getFriendlyErrorMessage } from '../utils/errorHandler';
 import Card from '../components/Card';
 import Input from '../components/Input';
 import Select from '../components/Select';
@@ -10,13 +12,16 @@ import Button from '../components/Button';
 import BottomNav from '../components/BottomNav';
 import BottomSheet from '../components/BottomSheet';
 import ConfirmationSheet from '../components/ConfirmationSheet';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function DashboardCustomer() {
   const navigate = useNavigate();
   const { profile, refreshProfile, isProfileComplete } = useAuth();
+  const { isDark } = useTheme();
 
   // BottomSheet State
   const [profileSheetOpen, setProfileSheetOpen] = useState(false);
+  const [settingsSheetOpen, setSettingsSheetOpen] = useState(false);
   const [logoutSheetOpen, setLogoutSheetOpen] = useState(false);
   const [noticeSheetOpen, setNoticeSheetOpen] = useState(false);
   const [noticeMessage, setNoticeMessage] = useState('');
@@ -106,7 +111,7 @@ export default function DashboardCustomer() {
       setProfileSheetOpen(false);
       showNotice('Data profil & alamat pengiriman Anda berhasil disimpan!');
     } catch (err) {
-      showNotice(err.message || 'Gagal menyimpan profil. Silakan coba lagi.');
+      showNotice(getFriendlyErrorMessage(err));
     } finally {
       setSavingProfile(false);
     }
@@ -200,21 +205,26 @@ export default function DashboardCustomer() {
             </p>
           </div>
 
+          {/* Tombol Pengaturan Baru (Menggantikan Tombol Keluar Langsung) */}
           <button
-            onClick={() => setLogoutSheetOpen(true)}
+            onClick={() => setSettingsSheetOpen(true)}
             style={{
-              background: 'rgba(255, 255, 255, 0.18)',
-              border: '1px solid rgba(255, 255, 255, 0.35)',
+              background: 'rgba(255, 255, 255, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.4)',
               borderRadius: 'var(--radius-md)',
               color: '#ffffff',
-              padding: '6px 12px',
-              fontSize: '12px',
+              padding: '7px 12px',
+              fontSize: '12.5px',
               fontWeight: '600',
               cursor: 'pointer',
               backdropFilter: 'blur(4px)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
             }}
           >
-            Keluar
+            <span>⚙️</span>
+            <span>Pengaturan</span>
           </button>
         </div>
       </Card>
@@ -405,7 +415,7 @@ export default function DashboardCustomer() {
 
             <Input
               label="Nama Kampung / Dusun / Jalan"
-              placeholder="Contoh: Kp. Babakan / Dusun Krajan"
+              placeholder="Contoh: Kp. Cibeet"
               value={kampung}
               onChange={(e) => setKampung(e.target.value)}
               required
@@ -443,6 +453,79 @@ export default function DashboardCustomer() {
               </Button>
             </div>
           </form>
+        </div>
+      </BottomSheet>
+
+      {/* Bottom Sheet: Menu Pengaturan (Dark Mode, Alamat, Keluar) */}
+      <BottomSheet
+        isOpen={settingsSheetOpen}
+        onClose={() => setSettingsSheetOpen(false)}
+        title="Pengaturan"
+      >
+        <div style={{ padding: '8px 0 16px 0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Pengaturan Tema (Dark/Light Mode) */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '14px 16px',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--color-bg-base)',
+              boxShadow: 'var(--skeuo-input-sunken)',
+            }}
+          >
+            <div>
+              <h4 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--color-text-main)', margin: 0 }}>
+                Tema Aplikasi
+              </h4>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: '2px 0 0 0' }}>
+                Mode saat ini: {isDark ? '🌙 Mode Gelap' : '☀️ Mode Terang'}
+              </p>
+            </div>
+            <ThemeToggle />
+          </div>
+
+          {/* Opsi Ubah Alamat Pengiriman */}
+          <div
+            onClick={() => {
+              setSettingsSheetOpen(false);
+              setProfileSheetOpen(true);
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '14px 16px',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--color-bg-base)',
+              boxShadow: 'var(--skeuo-input-sunken)',
+              cursor: 'pointer',
+            }}
+          >
+            <div>
+              <h4 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--color-text-main)', margin: 0 }}>
+                🏡 Data Alamat Rumah
+              </h4>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: '2px 0 0 0' }}>
+                {profile?.alamat ? 'Klik untuk memperbarui alamat' : 'Alamat belum diatur'}
+              </p>
+            </div>
+            <span style={{ fontSize: '16px', color: 'var(--color-primary)' }}>➔</span>
+          </div>
+
+          {/* Tombol Keluar / Logout */}
+          <div style={{ marginTop: '8px' }}>
+            <Button
+              variant="danger"
+              onClick={() => {
+                setSettingsSheetOpen(false);
+                setLogoutSheetOpen(true);
+              }}
+            >
+              🚪 Keluar dari Akun
+            </Button>
+          </div>
         </div>
       </BottomSheet>
 

@@ -195,7 +195,7 @@ export default function RegisterCustomer() {
 
             <Input
               label="Nama Kampung / Dusun / Jalan"
-              placeholder="Contoh: Kp. Babakan / Dusun Krajan"
+              placeholder="Contoh: Kp. Cibeet"
               value={kampung}
               onChange={(e) => setKampung(e.target.value)}
               required
