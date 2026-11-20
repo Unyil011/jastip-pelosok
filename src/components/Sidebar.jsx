@@ -323,7 +323,6 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
           <div style={{ textAlign: 'center', marginTop: '14px', fontSize: '11.5px', color: 'var(--color-text-dim)', lineHeight: '1.6' }}>
             <div><b>Jastip Pelosok</b> v1.0 • © 2026</div>
             <div>
-              Dibuat oleh{' '}
               <a
                 href="https://www.facebook.com/rival.cibonk.58?locale=id_ID"
                 target="_blank"

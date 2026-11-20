@@ -295,17 +295,20 @@ export default function DashboardCustomer() {
   };
 
   const getLocationLabel = () => {
-    if (!profile?.alamat) return 'Atur Lokasi Pengantaran';
+    if (!profile?.alamat) return 'Atur Titik Lokasi Rumah';
     const clean = profile.alamat.split('(')[0];
     const parts = clean.split(',').map((p) => p.trim());
+    let village = '';
     if (parts.length >= 3) {
-      return `${parts[0]}, ${parts[2].replace(/^Desa\s+/i, '')}`;
+      village = parts[2].replace(/^Desa\s+/i, '');
     }
-    return parts[0] || 'Kec. Naringgul';
+    // Bersihkan jika ada tulisan "Kp." yang berulang
+    let kp = parts[0].replace(/^(?:Kp\.\s*)+/i, 'Kp. ');
+    return village ? `${kp}, ${village}` : kp || 'Kec. Naringgul';
   };
 
   return (
-    <div className="app-container" style={{ paddingBottom: '90px', paddingTop: '12px' }}>
+    <div className="app-container" style={{ paddingBottom: '90px', paddingTop: '14px' }}>
       {/* 1. Header Minimalis & Clean (Sesuai Referensi AFTER: Lokasi di Kiri, Avatar Profil di Kanan) */}
       <div
         style={{
@@ -316,36 +319,32 @@ export default function DashboardCustomer() {
           padding: '2px 4px',
         }}
       >
-        {/* Lokasi Pengantaran Pelanggan (Kiri) */}
+        {/* Lokasi Rumah Pelanggan (Kiri) */}
         <div
           onClick={() => setProfileSheetOpen(true)}
           style={{
             cursor: 'pointer',
             display: 'flex',
-            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '6px',
           }}
           title="Klik untuk ubah alamat atau titik GPS rumah"
         >
-          <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', fontWeight: '600', letterSpacing: '0.4px' }}>
-            Lokasi Pengantaran
+          <span style={{ fontSize: '18px' }}>📍</span>
+          <span
+            style={{
+              fontSize: '15px',
+              fontWeight: '800',
+              color: 'var(--color-text-main)',
+              maxWidth: '240px',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {getLocationLabel()}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
-            <span style={{ fontSize: '15px' }}>📍</span>
-            <span
-              style={{
-                fontSize: '15px',
-                fontWeight: '800',
-                color: 'var(--color-text-main)',
-                maxWidth: '220px',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {getLocationLabel()}
-            </span>
-            <span style={{ fontSize: '12px', color: 'var(--color-primary)', fontWeight: '700' }}>▾</span>
-          </div>
+          <span style={{ fontSize: '13px', color: 'var(--color-primary)', fontWeight: '800' }}>▾</span>
         </div>
 
         {/* Foto Profil Avatar (Kanan) -> Membuka Slide Drawer Pengaturan & Profil tempat Logo Jastip Pelosok berada */}
@@ -474,7 +473,7 @@ export default function DashboardCustomer() {
                 lineHeight: '1.4',
               }}
             >
-              Amanah, cepat & pasti diantar kurir sampai depan pintu rumah se-Kecamatan Naringgul.
+              Amanah, cepat & pasti diantar sampai depan pintu rumah.
             </p>
 
             <button
@@ -525,22 +524,13 @@ export default function DashboardCustomer() {
       <div style={{ marginBottom: '22px' }}>
         <div
           style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
             marginBottom: '12px',
             padding: '0 2px',
           }}
         >
-          <h3 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--color-text-main)', margin: 0 }}>
+          <h3 style={{ fontSize: '15.5px', fontWeight: '800', color: 'var(--color-text-main)', margin: 0 }}>
             Kategori Layanan
           </h3>
-          <span
-            onClick={() => navigate('/buat-order')}
-            style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-primary)', cursor: 'pointer' }}
-          >
-            Pesan Layanan ➔
-          </span>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
