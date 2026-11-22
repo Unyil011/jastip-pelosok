@@ -55,6 +55,10 @@ export default function DeliveryMap({
   const courierMarkerRef = useRef(null);
   const routePolylineRef = useRef(null);
   const [mapReady, setMapReady] = useState(false);
+  const [loadingRoute, setLoadingRoute] = useState(false);
+
+  // Flag agar fitBounds HANYA berjalan 1x saat pertama kali buka, TIDAK me-reset zoom kurir saat GPS bergerak!
+  const hasInitialFittedRef = useRef(false);
 
   // Pusat Default: Hub Kecamatan Naringgul, Cianjur Selatan
   const NARINGGUL_CENTER = [-7.4764, 107.4851];
@@ -103,37 +107,31 @@ export default function DeliveryMap({
     };
   }, [mapReady, orders]);
 
-  // 3. Render Titik Rumah Pelanggan (Icon Rumah 🏠), Jalur Rute Polyline, dan Posisi Kurir
+  // 3. Render Titik Rumah Pelanggan (Icon Rumah 🏠) & Jalur Mengikuti Jalan Asli (OSRM Road Routing)
   useEffect(() => {
     if (!mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
 
-    // Bersihkan marker lama & polyline rute lama
+    // Bersihkan marker lama
     Object.values(markersRef.current).forEach((m) => m.remove());
     markersRef.current = {};
 
-    if (routePolylineRef.current) {
-      routePolylineRef.current.remove();
-      routePolylineRef.current = null;
-    }
-
     const bounds = [];
-    const routePoints = [];
+    const destinationPoints = [];
 
-    // Jika posisi kurir aktif, jadikan titik awal rute pengantaran
+    // Posisi awal rute
     const courierPoint = courierLocation && courierLocation[0] && courierLocation[1]
       ? [parseFloat(courierLocation[0]), parseFloat(courierLocation[1])]
       : NARINGGUL_CENTER;
 
     bounds.push(courierPoint);
-    routePoints.push(courierPoint);
 
     let pinNumber = 1;
 
     orders.forEach((order) => {
       const coords = resolveOrderCoords(order);
       bounds.push(coords);
-      routePoints.push(coords);
+      destinationPoints.push(coords);
 
       const isTerkirim = order.status_pengiriman === 'terkirim';
       const isOtw = order.status_pengiriman === 'dalam_perjalanan';
@@ -235,26 +233,77 @@ export default function DeliveryMap({
       pinNumber++;
     });
 
-    // 4. Gambar Garis Jalur Rute Pengantaran (Delivery Route Polyline)
-    if (routePoints.length >= 2) {
-      const polyline = L.polyline(routePoints, {
-        color: '#38bdf8',
-        weight: 4.5,
-        opacity: 0.9,
-        dashArray: '8, 8',
-        lineJoin: 'round',
-      }).addTo(map);
+    // 4. Ambil Jalur Jalan Asli Menggunakan OSRM Routing Engine (Mengikuti Belokan Jalan Raya/Desa)
+    const drawRealRoadRoute = async () => {
+      if (destinationPoints.length === 0) return;
 
-      polyline.bindTooltip('🛣️ Jalur Pengantaran Kurir Pelosok', { sticky: true });
-      routePolylineRef.current = polyline;
-    }
+      if (routePolylineRef.current) {
+        routePolylineRef.current.remove();
+        routePolylineRef.current = null;
+      }
 
-    if (bounds.length > 0) {
+      setLoadingRoute(true);
+
+      try {
+        // Ambil titik tujuan terdekat atau target terpilih
+        const targetPoint = selectedOrder ? resolveOrderCoords(selectedOrder) : destinationPoints[0];
+
+        // Format OSRM: /route/v1/driving/{lng1},{lat1};{lng2},{lat2}
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${courierPoint[1]},${courierPoint[0]};${targetPoint[1]},${targetPoint[0]}?overview=full&geometries=geojson`;
+
+        const res = await fetch(osrmUrl);
+        const data = await res.json();
+
+        if (data.code === 'Ok' && data.routes && data.routes[0]) {
+          // Konversi koordinat GeoJSON [lng, lat] ke Leaflet [lat, lng]
+          const roadPath = data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+
+          const polyline = L.polyline(roadPath, {
+            color: '#38bdf8', // Cyan terang navigasi satelit
+            weight: 5.5,
+            opacity: 0.95,
+            lineJoin: 'round',
+            lineCap: 'round',
+          }).addTo(map);
+
+          const distanceKm = (data.routes[0].distance / 1000).toFixed(1);
+          polyline.bindTooltip(`🛣️ Jalur Jalan Asli: ${distanceKm} km`, { sticky: true });
+          routePolylineRef.current = polyline;
+        } else {
+          // Fallback garis putus jika server OSRM sedang sibuk
+          const fallbackPolyline = L.polyline([courierPoint, targetPoint], {
+            color: '#38bdf8',
+            weight: 4,
+            opacity: 0.85,
+            dashArray: '8, 8',
+          }).addTo(map);
+          routePolylineRef.current = fallbackPolyline;
+        }
+      } catch (err) {
+        console.warn('Gagal memuat rute jalan OSRM, menggunakan fallback:', err);
+        const fallbackTarget = destinationPoints[0];
+        const fallbackPolyline = L.polyline([courierPoint, fallbackTarget], {
+          color: '#38bdf8',
+          weight: 4,
+          opacity: 0.85,
+          dashArray: '8, 8',
+        }).addTo(map);
+        routePolylineRef.current = fallbackPolyline;
+      } finally {
+        setLoadingRoute(false);
+      }
+    };
+
+    drawRealRoadRoute();
+
+    // HANYA fitBounds saat pertama kali dibuka! TIDAK MERESET ZOOM saat kurir sedang fokus / zoom!
+    if (!hasInitialFittedRef.current && bounds.length > 0) {
       map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+      hasInitialFittedRef.current = true;
     }
-  }, [orders, selectedOrder, courierLocation]);
+  }, [orders, selectedOrder]); // HAPUS courierLocation dari dependency agar TIDAK re-fitBounds saat GPS bergerak!
 
-  // 5. Render Pin Posisi Kurir Bergerak (Live Motor Kurir Pulse Marker)
+  // 5. Render Pin Posisi Kurir Bergerak (Live Motor Kurir Pulse Marker - Tanpa Reset Zoom!)
   useEffect(() => {
     if (!mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
@@ -290,6 +339,7 @@ export default function DeliveryMap({
     });
 
     if (courierMarkerRef.current) {
+      // Perbarui posisi motor saja, TANPA mengubah zoom / posisi kamera kurir!
       courierMarkerRef.current.setLatLng(currentCoords);
     } else {
       courierMarkerRef.current = L.marker(currentCoords, {
@@ -300,7 +350,7 @@ export default function DeliveryMap({
     }
   }, [courierLocation]);
 
-  // Tombol Reset Zoom ke Seluruh Rute
+  // Tombol Reset Zoom ke Seluruh Rute (Hanya saat kurir klik tombol ini)
   const handleFitAll = () => {
     if (!mapInstanceRef.current) return;
     const bounds = [];
@@ -313,16 +363,19 @@ export default function DeliveryMap({
     }
   };
 
-  // Tombol Pusatkan Tepat ke Posisi Kurir (Seperti Google Maps)
+  // Tombol Pusatkan Tepat ke Posisi Kurir (Seperti Google Maps - Mempertahankan Zoom Fokus Kurir)
   const handleCenterToCourier = () => {
     if (!mapInstanceRef.current) return;
     const currentCoords = courierLocation && courierLocation[0] && courierLocation[1]
       ? [parseFloat(courierLocation[0]), parseFloat(courierLocation[1])]
       : NARINGGUL_CENTER;
 
-    mapInstanceRef.current.flyTo(currentCoords, 17, {
+    // Ambil zoom kurir saat ini (jika kurir sedang zoom mendalam, pertahankan zoom-nya!)
+    const currentZoom = Math.max(mapInstanceRef.current.getZoom(), 16);
+
+    mapInstanceRef.current.flyTo(currentCoords, currentZoom, {
       animate: true,
-      duration: 1.2,
+      duration: 1.0,
     });
   };
 
@@ -363,7 +416,8 @@ export default function DeliveryMap({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span>🛰️</span>
-          <b>Peta Satelit Pelosok ({orders.length} Rumah)</b>
+          <b>Peta Satelit ({orders.length} Rumah Pelosok)</b>
+          {loadingRoute && <span style={{ fontSize: '10px', opacity: 0.8 }}>(Menggambar Rute...)</span>}
         </div>
 
         <button
@@ -451,7 +505,7 @@ export default function DeliveryMap({
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           <span style={{ display: 'inline-block', width: '14px', height: '3px', background: '#38bdf8', borderRadius: '2px' }} />
-          <span style={{ color: '#38bdf8', fontWeight: '700' }}>Jalur Rute</span>
+          <span style={{ color: '#38bdf8', fontWeight: '700' }}>Jalan Asli</span>
         </div>
       </div>
     </div>
