@@ -36,7 +36,7 @@ export default function BottomNav({ role = 'customer' }) {
         {
           id: 'antar',
           label: 'Antaran',
-          path: '/dashboard-kurir',
+          path: '/dashboard-kurir?tab=antaran',
           icon: '🛵',
         },
         {
@@ -49,8 +49,14 @@ export default function BottomNav({ role = 'customer' }) {
         {
           id: 'riwayat-kurir',
           label: 'Selesai',
-          path: '/dashboard-kurir?status=terkirim',
+          path: '/dashboard-kurir?tab=selesai',
           icon: '✅',
+        },
+        {
+          id: 'profil',
+          label: 'Profil',
+          path: '/dashboard-kurir?tab=profil',
+          icon: '👤',
         },
       ];
     }
@@ -102,10 +108,20 @@ export default function BottomNav({ role = 'customer' }) {
       }}
     >
       {tabs.map((tab) => {
-        const isActive =
-          location.pathname + location.search === tab.path ||
-          (tab.id === 'home' && location.pathname === '/dashboard-customer') ||
-          (tab.id === 'antar' && location.pathname === '/dashboard-kurir');
+        let isActive = location.pathname + location.search === tab.path;
+        if (role === 'kurir') {
+          if (tab.id === 'antar') {
+            isActive = location.pathname === '/dashboard-kurir' && (!location.search || location.search.includes('tab=antaran'));
+          } else if (tab.id === 'scan') {
+            isActive = location.search.includes('tab=scan');
+          } else if (tab.id === 'riwayat-kurir') {
+            isActive = location.search.includes('tab=selesai');
+          } else if (tab.id === 'profil') {
+            isActive = location.search.includes('tab=profil');
+          }
+        } else if (tab.id === 'home' && location.pathname === '/dashboard-customer') {
+          isActive = true;
+        }
 
         if (tab.highlight) {
           return (

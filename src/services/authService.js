@@ -114,6 +114,28 @@ export const authService = {
   },
 
   /**
+   * Memperbarui profil mitra kurir (Nama, No HP/WA, DANA, Wilayah, Foto)
+   */
+  async updateKurirProfile(userId, { name, phone, danaNumber, alamat, fotoUrl }) {
+    const updates = {};
+    if (name) updates.nama = name.trim();
+    if (phone) updates.no_hp = sanitizePhone(phone);
+    if (danaNumber !== undefined) updates.nomor_dana = danaNumber.trim();
+    if (alamat !== undefined) updates.alamat = alamat.trim();
+    if (fotoUrl !== undefined) updates.foto_url = fotoUrl;
+
+    const { data, error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', userId)
+      .select('id, nama, no_hp, role, status_approval, jalur_id, alamat, nomor_dana, foto_url, latitude, longitude')
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
    * Pendaftaran Mandiri Mitra Kurir
    */
   async registerKurir({ name, phone, password, danaNumber, jalurId = null }) {

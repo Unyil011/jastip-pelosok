@@ -4,6 +4,8 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { useAuth } from '../hooks/useAuth';
 import { authService } from '../services/authService';
 import { orderService } from '../services/orderService';
+import { villageService } from '../services/villageService';
+import { compressImageToWebP } from '../utils/imageCompressor';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
 import Input from '../components/Input';
@@ -24,7 +26,10 @@ import {
 export default function DashboardKurir() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
+
+  const searchParams = new URLSearchParams(location.search);
+  const activeMainTab = searchParams.get('tab') || (searchParams.get('status') === 'terkirim' ? 'selesai' : 'antaran');
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +45,129 @@ export default function DashboardKurir() {
   const [scanOngkirKurir, setScanOngkirKurir] = useState('10000');
   const kurirScannerRef = useRef(null);
 
+  // State Kartu Diperbesar / Diperkecil (Tersimpan di localStorage, tidak berubah saat refresh)
+  const [expandedCards, setExpandedCards] = useState(() => {
+    try {
+      const saved = localStorage.getItem('kurir_cards_expanded_map');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return {};
+  });
+
+  const [defaultCardsExpanded, setDefaultCardsExpanded] = useState(() => {
+    const saved = localStorage.getItem('kurir_cards_default_expanded');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const toggleCardExpand = (orderId) => {
+    setExpandedCards((prev) => {
+      const current = prev[orderId] !== undefined ? prev[orderId] : defaultCardsExpanded;
+      const updated = { ...prev, [orderId]: !current };
+      try {
+        localStorage.setItem('kurir_cards_expanded_map', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+  };
+
+  const toggleAllCardsExpand = () => {
+    const next = !defaultCardsExpanded;
+    setDefaultCardsExpanded(next);
+    localStorage.setItem('kurir_cards_default_expanded', String(next));
+    const updated = {};
+    orders.forEach((o) => {
+      updated[o.id] = next;
+    });
+    setExpandedCards(updated);
+    try {
+      localStorage.setItem('kurir_cards_expanded_map', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // State Edit Profil Kurir (Sama Seperti di Akun Customer)
+  const [profileName, setProfileName] = useState(profile?.nama || '');
+  const [profilePhone, setProfilePhone] = useState(profile?.no_hp || '');
+  const [profileAlamat, setProfileAlamat] = useState(profile?.alamat || '');
+  const [profileDana, setProfileDana] = useState(profile?.nomor_dana || '');
+  const [profileFotoUrl, setProfileFotoUrl] = useState(profile?.foto_url || '');
+  const [compressingFoto, setCompressingFoto] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [desaList, setDesaList] = useState([]);
+  const profileFileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (profile) {
+      if (profile.nama) setProfileName(profile.nama);
+      if (profile.no_hp) setProfilePhone(profile.no_hp);
+      if (profile.alamat) setProfileAlamat(profile.alamat);
+      if (profile.nomor_dana) setProfileDana(profile.nomor_dana);
+      if (profile.foto_url) setProfileFotoUrl(profile.foto_url);
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    villageService.getAllDesa().then((res) => {
+      if (res && res.length) setDesaList(res);
+    }).catch(console.error);
+  }, []);
+
+  const handleSaveKurirProfile = async (e) => {
+    e?.preventDefault();
+    if (!profileName.trim()) {
+      setFeedbackSheet({ open: true, title: 'Nama Wajib Diisi', message: 'Silakan isi nama lengkap Anda.' });
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      await authService.updateKurirProfile(profile.id, {
+        name: profileName,
+        phone: profilePhone,
+        danaNumber: profileDana,
+        alamat: profileAlamat,
+        fotoUrl: profileFotoUrl,
+      });
+      if (refreshProfile) await refreshProfile();
+      setFeedbackSheet({
+        open: true,
+        title: 'Profil Berhasil Disimpan! ✅',
+        message: 'Informasi profil, wilayah antaran, dan akun DANA Anda telah diperbarui.',
+      });
+    } catch (err) {
+      setFeedbackSheet({
+        open: true,
+        title: 'Gagal Menyimpan Profil',
+        message: err.message || 'Terjadi kesalahan saat menyimpan profil.',
+      });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleKurirFotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setCompressingFoto(true);
+    try {
+      const webpBase64 = await compressImageToWebP(file, 300, 0.8);
+      setProfileFotoUrl(webpBase64);
+    } catch (err) {
+      setFeedbackSheet({
+        open: true,
+        title: 'Gagal Memproses Foto',
+        message: err.message || 'Silakan coba gunakan foto lain.',
+      });
+    } finally {
+      setCompressingFoto(false);
+    }
+  };
+
   // Logout State
   const [logoutSheetOpen, setLogoutSheetOpen] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
@@ -54,6 +182,26 @@ export default function DashboardKurir() {
     } finally {
       setLogoutLoading(false);
     }
+  };
+
+  // Generator Pesan WhatsApp Dinamis (Dengan Nama Kurir & Rincian Ongkir / COD)
+  const generateWaMessage = (order) => {
+    const kurirName = profile?.nama ? `saya ${profile.nama} (Kurir Pelosok)` : 'saya kurir yang bertugas';
+    const customerName = order.customer?.nama || 'Kak';
+    const resi = order.nomor_resi ? `No. Resi: ${order.nomor_resi}` : '';
+    const barang = order.deskripsi_barang ? `Barang: ${order.deskripsi_barang}` : 'Paket Ekspedisi';
+    const alamat = order.alamat_tujuan || '-';
+
+    const ongkir = order.ongkir_patokan || order.ongkir_diterima || 0;
+    
+    let paymentText = '';
+    if (order.metode_pembayaran === 'COD') {
+      paymentText = `💰 *Pembayaran: COD (Bayar di Tempat)*\n💵 *Mohon siapkan uang pas:* Rp ${Number(ongkir).toLocaleString('id-ID')}`;
+    } else {
+      paymentText = `✅ *Pembayaran Barang:* Sudah Lunas (Transfer)\n💰 *Mohon siapkan ongkir kurir:* Rp ${Number(ongkir).toLocaleString('id-ID')} (dibayarkan tunai saat kurir tiba)`;
+    }
+
+    return `Halo Kak ${customerName} 👋\n${kurirName} sedang dalam perjalanan mengantar paket ke alamat Anda.\n\n📦 ${barang}\n🔖 ${resi}\n📍 Alamat: ${alamat}\n\n${paymentText}\n\nMohon pastikan ada orang di rumah ya Kak. Terima kasih! 🙏`;
   };
 
   // Filter & Pencarian dengan Persistence (Posisi tetap sama setelah refresh)
@@ -664,674 +812,1044 @@ export default function DashboardKurir() {
 
   return (
     <div className="app-container" style={{ paddingBottom: '90px' }}>
-      {/* Kurir Header Banner */}
-      <Card
+      {/* 1. Header Minimalis & Clean ala Customer */}
+      <div
         style={{
-          background: 'linear-gradient(135deg, #1f94c4 0%, #10597a 100%)',
-          color: '#ffffff',
-          border: '1px solid rgba(255, 255, 255, 0.25)',
-          padding: '16px 18px',
-          marginBottom: '14px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '16px',
+          padding: '4px 2px',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', opacity: 0.9 }}>
-              Mitra Kurir Lapangan 🛵
+        {/* Sapaan Kurir & Wilayah Antaran (Klik membuka Tab Profil) */}
+        <div
+          onClick={() => navigate('/dashboard-kurir?tab=profil')}
+          style={{
+            cursor: 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+          title="Klik untuk buka profil kurir"
+        >
+          <span
+            style={{
+              fontSize: '16.5px',
+              fontWeight: '900',
+              color: 'var(--color-text-main)',
+              letterSpacing: '-0.3px',
+              maxWidth: '220px',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            Halo, {profile?.nama || 'Mitra Kurir'}! 🛵
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+            <span style={{ fontSize: '11px' }}>📍</span>
+            <span
+              style={{
+                fontSize: '11.5px',
+                fontWeight: '600',
+                color: 'var(--color-text-muted)',
+                maxWidth: '200px',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {profile?.alamat || 'Semua Wilayah'} {profile?.nomor_dana ? `• DANA: ${profile.nomor_dana}` : ''}
             </span>
-            <h2 style={{ fontSize: '18px', fontWeight: '800', margin: '2px 0 0 0' }}>
-              {profile?.nama || 'Kurir Pelosok'}
-            </h2>
-            <div style={{ display: 'flex', gap: '8px', fontSize: '12px', opacity: 0.9, marginTop: '3px', flexWrap: 'wrap' }}>
-              <span>📍 Wilayah Antaran: <b>{profile?.alamat || 'Semua Desa (Default)'}</b></span>
-              <span>•</span>
-              <span>DANA: <b>{profile?.nomor_dana || '-'}</b></span>
+            <span style={{ fontSize: '10px', color: 'var(--color-primary)', fontWeight: '700' }}>▾</span>
+          </div>
+        </div>
+
+        {/* Action Buttons Kanan: GPS Tracker + Refresh + Avatar Profil */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={toggleGpsTracking}
+            title={trackingGps ? 'GPS Aktif (Klik untuk matikan)' : 'Nyalakan GPS Kurir'}
+            style={{
+              background: trackingGps ? 'rgba(34, 197, 94, 0.15)' : 'var(--color-bg-card)',
+              border: trackingGps ? '1.5px solid #22c55e' : '1px solid var(--color-border)',
+              borderRadius: '20px',
+              color: trackingGps ? '#15803d' : 'var(--color-text-muted)',
+              padding: '5px 10px',
+              fontSize: '11px',
+              fontWeight: '800',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            <span>{trackingGps ? '🟢' : '📍'}</span>
+            <span>{trackingGps ? 'GPS ON' : 'GPS'}</span>
+          </button>
+
+          <button
+            onClick={loadKurirOrders}
+            title="Muat ulang data order"
+            style={{
+              background: 'var(--color-bg-card)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '50%',
+              width: '36px',
+              height: '36px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '14px',
+              cursor: 'pointer',
+              color: 'var(--color-text-main)',
+            }}
+          >
+            🔄
+          </button>
+
+          {/* Avatar Profil Kurir -> Klik Buka Tab Profil */}
+          <button
+            onClick={() => navigate('/dashboard-kurir?tab=profil')}
+            title="Buka Halaman Profil Kurir"
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              position: 'relative',
+            }}
+          >
+            {profile?.foto_url ? (
+              <img
+                src={profile.foto_url}
+                alt={profile?.nama || 'Profil'}
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: '2px solid var(--color-primary)',
+                  boxShadow: 'var(--skeuo-button-raised)',
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary) 100%)',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '15px',
+                  fontWeight: '800',
+                  boxShadow: 'var(--skeuo-button-raised)',
+                  border: '2px solid rgba(255,255,255,0.6)',
+                }}
+              >
+                {profile?.nama ? profile.nama.charAt(0).toUpperCase() : '🛵'}
+              </div>
+            )}
+            {/* Dot Status Hijau */}
+            <span
+              style={{
+                position: 'absolute',
+                bottom: '0',
+                right: '0',
+                width: '10px',
+                height: '10px',
+                borderRadius: '50%',
+                background: '#22c55e',
+                border: '2px solid var(--color-bg-base)',
+              }}
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* ======================================================== */}
+      {/* KONDISIONAL TAMPILAN BERDASARKAN TAB DI BOTTOM NAV / URL */}
+      {/* ======================================================== */}
+
+      {/* TAB 4: PROFIL MITRA KURIR */}
+      {activeMainTab === 'profil' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <Card
+            title="Profil Mitra Kurir 👤"
+            subtitle="Informasi identitas kurir, wilayah tugas, dan rekening pencairan ongkir"
+          >
+            {/* Foto Profil & Upload Foto WebP */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '18px' }}>
+              <div style={{ position: 'relative' }}>
+                {profileFotoUrl ? (
+                  <img
+                    src={profileFotoUrl}
+                    alt="Foto Profil"
+                    style={{
+                      width: '88px',
+                      height: '88px',
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: '3px solid var(--color-primary)',
+                      boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: '88px',
+                      height: '88px',
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary) 100%)',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '32px',
+                      fontWeight: '800',
+                      border: '3px solid #ffffff',
+                      boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
+                    }}
+                  >
+                    {profileName ? profileName.charAt(0).toUpperCase() : '🛵'}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => profileFileInputRef.current?.click()}
+                  title="Ganti Foto Profil"
+                  style={{
+                    position: 'absolute',
+                    bottom: '2px',
+                    right: '2px',
+                    background: 'var(--color-primary)',
+                    color: '#ffffff',
+                    border: '2px solid #ffffff',
+                    borderRadius: '50%',
+                    width: '30px',
+                    height: '30px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+                  }}
+                >
+                  📷
+                </button>
+              </div>
+
+              <input
+                ref={profileFileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleKurirFotoChange}
+                style={{ display: 'none' }}
+              />
+
+              {compressingFoto && (
+                <span style={{ fontSize: '11px', color: 'var(--color-primary)', marginTop: '6px', fontWeight: '700' }}>
+                  Mengompres & memproses foto...
+                </span>
+              )}
+            </div>
+
+            {/* Form Profil Kurir */}
+            <form onSubmit={handleSaveKurirProfile} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <Input
+                label="Nama Lengkap Kurir"
+                type="text"
+                value={profileName}
+                onChange={(e) => setProfileName(e.target.value)}
+                placeholder="Nama kurir yang tampil ke customer"
+                required
+              />
+
+              <Input
+                label="Nomor WhatsApp / HP"
+                type="tel"
+                value={profilePhone}
+                onChange={(e) => setProfilePhone(e.target.value)}
+                placeholder="08xxxxxxxxxx"
+                required
+              />
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '6px' }}>
+                  Wilayah / Jalur Tugas Utama
+                </label>
+                <select
+                  value={profileAlamat}
+                  onChange={(e) => setProfileAlamat(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1.5px solid var(--color-border)',
+                    fontSize: '13px',
+                    background: 'var(--color-bg-card)',
+                    color: 'var(--color-text-main)',
+                  }}
+                >
+                  <option value="Semua Desa (Default)">Semua Desa se-Kecamatan Naringgul</option>
+                  {desaList.map((d) => (
+                    <option key={d.id} value={`Desa ${d.nama_desa}`}>
+                      Desa {d.nama_desa}
+                    </option>
+                  ))}
+                </select>
+                <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px', display: 'block' }}>
+                  Sistem scan akan mencocokkan resi dengan wilayah tugas yang Anda pilih di sini.
+                </span>
+              </div>
+
+              <Input
+                label="Nomor Akun DANA (Pencairan Kas Ongkir)"
+                type="tel"
+                value={profileDana}
+                onChange={(e) => setProfileDana(e.target.value)}
+                placeholder="Nomor HP terdaftar di DANA"
+                helperText="Digunakan untuk penyerahan/pencairan kas ongkir kurir"
+              />
+
+              <div
+                style={{
+                  background: '#ecfdf5',
+                  border: '1px solid #a7f3d0',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '10px 12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '12px',
+                  color: '#065f46',
+                  fontWeight: '700',
+                }}
+              >
+                <span>🟢</span>
+                <span>Mitra Kurir Lapangan Resmi Jastip Pelosok</span>
+              </div>
+
+              <Button type="submit" loading={savingProfile} style={{ width: '100%', marginTop: '6px' }}>
+                💾 Simpan Perubahan Profil
+              </Button>
+            </form>
+          </Card>
+
+          {/* Tombol Navigasi Cepat & Keluar Akun */}
+          <Card padding="14px">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <Button
+                variant="outline"
+                onClick={() => navigate('/dashboard-kurir?tab=antaran')}
+                style={{ width: '100%' }}
+              >
+                🛵 Kembali ke Daftar Antaran
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => setLogoutSheetOpen(true)}
+                style={{ width: '100%' }}
+              >
+                🚪 Keluar dari Akun Kurir
+              </Button>
+            </div>
+          </Card>
+        </div>
+      ) : (
+        /* TAB 1 (ANTARAN) & TAB 3 (SELESAI) */
+        <div>
+          {/* Ringkasan Performa & Kas Harian (Daily Metrics Card) */}
+          <Card
+            padding="14px 16px"
+            style={{
+              background: 'var(--color-bg-card)',
+              border: '1px solid var(--color-border)',
+              marginBottom: '14px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '15px' }}>📊</span>
+                <h3 style={{ fontSize: '14px', fontWeight: '800', color: 'var(--color-text-main)', margin: 0 }}>
+                  Ringkasan Antaran & Kas
+                </h3>
+              </div>
+
+              {/* Toggle Filter Waktu Sama Seperti Customer */}
+              <div
+                style={{
+                  display: 'flex',
+                  background: 'var(--color-bg-input)',
+                  padding: '3px',
+                  borderRadius: '999px',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                {[
+                  { id: 'hari_ini', label: 'Hari Ini' },
+                  { id: 'kemarin', label: 'Kemarin' },
+                  { id: 'semua', label: 'Semua' },
+                ].map((btn) => (
+                  <button
+                    key={btn.id}
+                    onClick={() => setDateFilter(btn.id)}
+                    style={{
+                      background: dateFilter === btn.id ? 'var(--color-primary)' : 'transparent',
+                      color: dateFilter === btn.id ? '#ffffff' : 'var(--color-text-muted)',
+                      border: 'none',
+                      borderRadius: '999px',
+                      padding: '4px 10px',
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {btn.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 4 Kotak Metrik Ringkasan */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '10px' }}>
+              <div
+                style={{
+                  background: 'var(--color-bg-input)',
+                  padding: '8px 6px',
+                  borderRadius: '8px',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '11px', color: 'var(--color-text-dim)', fontWeight: '600' }}>Total</div>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--color-text-main)', marginTop: '2px' }}>
+                  {stats.total}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: '#ecfdf5',
+                  border: '1px solid #a7f3d0',
+                  padding: '8px 6px',
+                  borderRadius: '8px',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '11px', color: '#047857', fontWeight: '600' }}>Terkirim</div>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#065f46', marginTop: '2px' }}>
+                  {stats.terkirim}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  padding: '8px 6px',
+                  borderRadius: '8px',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '11px', color: '#1d4ed8', fontWeight: '600' }}>Diantar</div>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e40af', marginTop: '2px' }}>
+                  {stats.otw}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: '#fef2f2',
+                  border: '1px solid #fecaca',
+                  padding: '8px 6px',
+                  borderRadius: '8px',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '11px', color: '#b91c1c', fontWeight: '600' }}>Retur</div>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#991b1b', marginTop: '2px' }}>
+                  {stats.retur}
+                </div>
+              </div>
+            </div>
+
+            {/* Kas Ongkir yang Diterima Kurir (Solusi Hak Ongkir Kurir) */}
+            <div
+              style={{
+                background: 'linear-gradient(90deg, #f0fdf4 0%, #e0f2fe 100%)',
+                border: '1px solid #86efac',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                fontSize: '12px',
+              }}
+            >
+              <div>
+                <span style={{ fontWeight: '700', color: '#166534' }}>💵 Kas Ongkir Terkumpul:</span>
+                <div style={{ fontSize: '10.5px', color: '#15803d' }}>
+                  (Termasuk ongkir dari paket terkirim & retur)
+                </div>
+              </div>
+              <div style={{ fontSize: '15px', fontWeight: '900', color: '#166534' }}>
+                {formatRupiah(stats.totalOngkirKas)}
+              </div>
+            </div>
+          </Card>
+
+          {/* Filter Tabs & Search Bar */}
+          <div style={{ marginBottom: '12px' }}>
+            {/* Search Bar Input */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+              <div style={{ flex: 1, position: 'relative' }}>
+                <input
+                  type="text"
+                  placeholder="Cari nama penerima, resi, alamat..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px 8px 32px',
+                    borderRadius: '20px',
+                    border: '1px solid var(--color-border)',
+                    background: 'var(--color-bg-card)',
+                    color: 'var(--color-text-main)',
+                    fontSize: '12.5px',
+                    outline: 'none',
+                    boxShadow: 'var(--skeuo-input-sunken)',
+                  }}
+                />
+                <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5, fontSize: '13px' }}>
+                  🔍
+                </span>
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    style={{
+                      position: 'absolute',
+                      right: '10px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--color-text-muted)',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Toggle Buka/Tutup Peta */}
+              <button
+                onClick={() => setShowMap(!showMap)}
+                style={{
+                  background: showMap ? 'var(--color-primary)' : 'var(--color-bg-card)',
+                  color: showMap ? '#ffffff' : 'var(--color-text-main)',
+                  border: '1px solid var(--color-border)',
+                  padding: '6px 12px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span>🗺️</span>
+                <span>{showMap ? 'Tutup Peta' : 'Peta Satelit'}</span>
+              </button>
+            </div>
+
+            {/* Status Filter Chips Sama Seperti Customer (Pill Rounded) */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '8px',
+                overflowX: 'auto',
+                paddingBottom: '4px',
+                scrollbarWidth: 'none',
+              }}
+            >
+              {[
+                { id: 'semua', label: 'Semua', count: stats.total },
+                { id: 'diterima_hub', label: 'Siap Antar', count: stats.siapAntar },
+                { id: 'dalam_perjalanan', label: 'Di Jalan', count: stats.otw },
+                { id: 'terkirim', label: 'Terkirim', count: stats.terkirim },
+                { id: 'retur', label: 'Retur', count: stats.retur },
+              ].map((chip) => {
+                const isActive = statusFilter === chip.id;
+                return (
+                  <button
+                    key={chip.id}
+                    onClick={() => setStatusFilter(chip.id)}
+                    style={{
+                      background: isActive ? 'var(--color-primary)' : 'var(--color-bg-card)',
+                      color: isActive ? '#ffffff' : 'var(--color-text-main)',
+                      border: isActive ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
+                      borderRadius: '999px',
+                      padding: '6px 12px',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      whiteSpace: 'nowrap',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: isActive ? '0 2px 6px rgba(46, 125, 50, 0.25)' : 'none',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <span>{chip.label}</span>
+                    <span
+                      style={{
+                        background: isActive ? 'rgba(255,255,255,0.25)' : 'var(--color-bg-input)',
+                        color: isActive ? '#ffffff' : 'var(--color-text-dim)',
+                        borderRadius: '10px',
+                        padding: '1px 6px',
+                        fontSize: '10.5px',
+                        fontWeight: '800',
+                      }}
+                    >
+                      {chip.count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <button
-                onClick={loadKurirOrders}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.2)',
-                  border: '1px solid rgba(255, 255, 255, 0.4)',
-                  borderRadius: 'var(--radius-md)',
-                  color: '#ffffff',
-                  padding: '5px 10px',
-                  fontSize: '11.5px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
+          {/* Peta Sebaran Paket Multi-Drop (Bila diaktifkan) */}
+          {showMap && filteredOrders.length > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              <DeliveryMap
+                orders={filteredOrders}
+                selectedOrder={selectedOrder}
+                onSelectOrder={(order) => {
+                  setSelectedOrder(order);
+                  const el = document.getElementById(`order-card-${order.id}`);
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }}
-              >
-                🔄 Refresh
-              </button>
-              <button
-                onClick={() => setLogoutSheetOpen(true)}
-                style={{
-                  background: 'rgba(239, 68, 68, 0.4)',
-                  border: '1px solid rgba(255, 255, 255, 0.5)',
-                  borderRadius: 'var(--radius-md)',
-                  color: '#ffffff',
-                  padding: '5px 8px',
-                  fontSize: '11.5px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                }}
-              >
-                🚪 Keluar
-              </button>
+                courierLocation={courierLocation}
+                height="320px"
+              />
             </div>
+          )}
+
+          {/* Bar Kontrol Kartu: Jumlah Paket & Tombol Besarkan/Kecilkan Semua */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '10px',
+              padding: '0 2px',
+            }}
+          >
+            <span style={{ fontSize: '13px', fontWeight: '800', color: 'var(--color-text-main)' }}>
+              Daftar Paket ({filteredOrders.length})
+            </span>
             <button
-              onClick={toggleGpsTracking}
+              type="button"
+              onClick={toggleAllCardsExpand}
               style={{
-                background: trackingGps ? '#16a34a' : 'rgba(0,0,0,0.3)',
-                border: trackingGps ? '1px solid #4ade80' : '1px solid rgba(255,255,255,0.3)',
-                borderRadius: 'var(--radius-md)',
-                color: '#ffffff',
-                padding: '5px 9px',
+                background: 'var(--color-bg-card)',
+                border: '1px solid var(--color-border)',
+                borderRadius: '8px',
+                padding: '4px 10px',
                 fontSize: '11px',
                 fontWeight: '700',
+                color: 'var(--color-primary-dark)',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '5px',
+                boxShadow: 'var(--skeuo-button-raised)',
               }}
             >
-              <span>{trackingGps ? '🟢' : '📍'}</span>
-              <span>{trackingGps ? 'GPS Aktif' : 'Nyalakan GPS'}</span>
+              <span>{defaultCardsExpanded ? '▲' : '▼'}</span>
+              <span>{defaultCardsExpanded ? 'Kecilkan Semua Data' : 'Besarkan Semua Data'}</span>
             </button>
           </div>
-        </div>
-      </Card>
 
-      {/* Ringkasan Performa & Kas Harian (Daily Metrics Card) */}
-      <Card
-        padding="14px 16px"
-        style={{
-          background: 'var(--color-bg-card)',
-          border: '1px solid var(--color-border)',
-          marginBottom: '14px',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '15px' }}>📊</span>
-            <h3 style={{ fontSize: '14px', fontWeight: '800', color: 'var(--color-text-main)', margin: 0 }}>
-              Ringkasan Antaran & Kas
-            </h3>
-          </div>
-
-          {/* Toggle Filter Waktu */}
-          <div
-            style={{
-              display: 'flex',
-              background: 'var(--color-bg-input)',
-              padding: '2px',
-              borderRadius: '8px',
-              border: '1px solid var(--color-border)',
-            }}
-          >
-            {[
-              { id: 'hari_ini', label: 'Hari Ini' },
-              { id: 'kemarin', label: 'Kemarin' },
-              { id: 'semua', label: 'Semua' },
-            ].map((btn) => (
-              <button
-                key={btn.id}
-                onClick={() => setDateFilter(btn.id)}
-                style={{
-                  background: dateFilter === btn.id ? 'var(--color-primary)' : 'transparent',
-                  color: dateFilter === btn.id ? '#ffffff' : 'var(--color-text-muted)',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '3px 8px',
-                  fontSize: '11px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                {btn.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 4 Kotak Metrik Ringkasan */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '10px' }}>
-          <div
-            style={{
-              background: 'var(--color-bg-input)',
-              padding: '8px 6px',
-              borderRadius: '8px',
-              textAlign: 'center',
-            }}
-          >
-            <div style={{ fontSize: '11px', color: 'var(--color-text-dim)', fontWeight: '600' }}>Total</div>
-            <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--color-text-main)', marginTop: '2px' }}>
-              {stats.total}
-            </div>
-          </div>
-
-          <div
-            style={{
-              background: '#ecfdf5',
-              border: '1px solid #a7f3d0',
-              padding: '8px 6px',
-              borderRadius: '8px',
-              textAlign: 'center',
-            }}
-          >
-            <div style={{ fontSize: '11px', color: '#047857', fontWeight: '600' }}>Terkirim</div>
-            <div style={{ fontSize: '18px', fontWeight: '800', color: '#065f46', marginTop: '2px' }}>
-              {stats.terkirim}
-            </div>
-          </div>
-
-          <div
-            style={{
-              background: '#eff6ff',
-              border: '1px solid #bfdbfe',
-              padding: '8px 6px',
-              borderRadius: '8px',
-              textAlign: 'center',
-            }}
-          >
-            <div style={{ fontSize: '11px', color: '#1d4ed8', fontWeight: '600' }}>Diantar</div>
-            <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e40af', marginTop: '2px' }}>
-              {stats.otw}
-            </div>
-          </div>
-
-          <div
-            style={{
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              padding: '8px 6px',
-              borderRadius: '8px',
-              textAlign: 'center',
-            }}
-          >
-            <div style={{ fontSize: '11px', color: '#b91c1c', fontWeight: '600' }}>Retur</div>
-            <div style={{ fontSize: '18px', fontWeight: '800', color: '#991b1b', marginTop: '2px' }}>
-              {stats.retur}
-            </div>
-          </div>
-        </div>
-
-        {/* Kas Ongkir yang Diterima Kurir (Solusi Hak Ongkir Kurir) */}
-        <div
-          style={{
-            background: 'linear-gradient(90deg, #f0fdf4 0%, #e0f2fe 100%)',
-            border: '1px solid #86efac',
-            borderRadius: '8px',
-            padding: '8px 12px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            fontSize: '12px',
-          }}
-        >
-          <div>
-            <span style={{ fontWeight: '700', color: '#166534' }}>💵 Kas Ongkir Terkumpul:</span>
-            <div style={{ fontSize: '10.5px', color: '#15803d' }}>
-              (Termasuk ongkir dari paket terkirim & retur)
-            </div>
-          </div>
-          <div style={{ fontSize: '15px', fontWeight: '900', color: '#166534' }}>
-            {formatRupiah(stats.totalOngkirKas)}
-          </div>
-        </div>
-      </Card>
-
-      {/* Filter Tabs & Search Bar */}
-      <div style={{ marginBottom: '12px' }}>
-        {/* Search Bar Input */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-          <div style={{ flex: 1, position: 'relative' }}>
-            <input
-              type="text"
-              placeholder="Cari nama penerima, resi, alamat..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 12px 8px 32px',
-                borderRadius: '20px',
-                border: '1px solid var(--color-border)',
-                background: 'var(--color-bg-card)',
-                color: 'var(--color-text-main)',
-                fontSize: '12.5px',
-                outline: 'none',
-                boxShadow: 'var(--skeuo-input-sunken)',
-              }}
-            />
-            <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5, fontSize: '13px' }}>
-              🔍
-            </span>
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                style={{
-                  position: 'absolute',
-                  right: '10px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--color-text-muted)',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                }}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-
-          {/* Toggle Buka/Tutup Peta */}
-          <button
-            onClick={() => setShowMap(!showMap)}
-            style={{
-              background: showMap ? 'var(--color-primary)' : 'var(--color-bg-card)',
-              color: showMap ? '#ffffff' : 'var(--color-text-main)',
-              border: '1px solid var(--color-border)',
-              padding: '6px 12px',
-              borderRadius: '20px',
-              fontSize: '12px',
-              fontWeight: '700',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <span>🗺️</span>
-            <span>{showMap ? 'Tutup Peta' : 'Peta'}</span>
-          </button>
-        </div>
-
-        {/* Status Filter Chips */}
-        <div
-          style={{
-            display: 'flex',
-            gap: '6px',
-            overflowX: 'auto',
-            paddingBottom: '4px',
-            scrollbarWidth: 'none',
-          }}
-        >
-          {[
-            { id: 'semua', label: 'Semua', count: stats.total },
-            { id: 'diterima_hub', label: 'Siap Antar', count: stats.siapAntar },
-            { id: 'dalam_perjalanan', label: 'Di Jalan', count: stats.otw },
-            { id: 'terkirim', label: 'Terkirim', count: stats.terkirim },
-            { id: 'retur', label: 'Retur', count: stats.retur },
-          ].map((chip) => {
-            const isActive = statusFilter === chip.id;
-            return (
-              <button
-                key={chip.id}
-                onClick={() => setStatusFilter(chip.id)}
-                style={{
-                  background: isActive ? 'var(--color-text-main)' : 'var(--color-bg-card)',
-                  color: isActive ? '#ffffff' : 'var(--color-text-main)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '16px',
-                  padding: '4px 10px',
-                  fontSize: '11.5px',
-                  fontWeight: '700',
-                  whiteSpace: 'nowrap',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                <span>{chip.label}</span>
-                <span
-                  style={{
-                    background: isActive ? 'rgba(255,255,255,0.25)' : 'var(--color-bg-input)',
-                    color: isActive ? '#ffffff' : 'var(--color-text-dim)',
-                    borderRadius: '10px',
-                    padding: '1px 5px',
-                    fontSize: '10px',
-                  }}
-                >
-                  {chip.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Peta Sebaran Paket Multi-Drop (Bila diaktifkan) */}
-      {showMap && filteredOrders.length > 0 && (
-        <div style={{ marginBottom: '16px' }}>
-          <DeliveryMap
-            orders={filteredOrders}
-            selectedOrder={selectedOrder}
-            onSelectOrder={(order) => {
-              setSelectedOrder(order);
-              const el = document.getElementById(`order-card-${order.id}`);
-              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }}
-            courierLocation={courierLocation}
-            height="320px"
-          />
-        </div>
-      )}
-
-      {/* Orders List */}
-      {loading ? (
-        <SkeletonLoader type="list" count={3} />
-      ) : filteredOrders.length === 0 ? (
-        <Card style={{ textAlign: 'center', padding: '36px 20px' }}>
-          <div style={{ fontSize: '42px', marginBottom: '10px' }}>🌴</div>
-          <h4 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--color-text-main)' }}>
-            Tidak ada paket yang sesuai
-          </h4>
-          <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-            {searchQuery
-              ? `Tidak ditemukan hasil untuk "${searchQuery}". Coba kata kunci lain.`
-              : 'Belum ada antaran pada filter yang Anda pilih saat ini.'}
-          </p>
-          {(statusFilter !== 'semua' || searchQuery) && (
-            <div style={{ marginTop: '12px' }}>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setStatusFilter('semua');
-                  setSearchQuery('');
-                }}
-              >
-                Reset Semua Filter
-              </Button>
-            </div>
-          )}
-        </Card>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          {filteredOrders.map((order, idx) => {
-            const meta = getDeliveryStatusMeta(order.status_pengiriman);
-            const isDiHub = order.status_pengiriman === 'diterima_hub';
-            const isOtw = order.status_pengiriman === 'dalam_perjalanan';
-            const isTerkirim = order.status_pengiriman === 'terkirim';
-            const isRetur = order.status_pengiriman === 'retur';
-
-            const lat = parseFloat(order.customer?.latitude);
-            const lng = parseFloat(order.customer?.longitude);
-            const hasGps = !isNaN(lat) && !isNaN(lng);
-
-            const isSelected = selectedOrder?.id === order.id;
-
-            return (
-              <Card
-                key={order.id}
-                id={`order-card-${order.id}`}
-                padding="16px"
-                style={{
-                  border: isSelected
-                    ? '2px solid var(--color-primary)'
-                    : isRetur
-                    ? '1px solid #fca5a5'
-                    : isTerkirim
-                    ? '1px solid #86efac'
-                    : '1px solid var(--color-border)',
-                  background: isRetur ? '#fff5f5' : 'var(--color-bg-card)',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                {/* Header Kartu */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '24px',
-                        height: '24px',
-                        borderRadius: '50%',
-                        background: isTerkirim ? '#16a34a' : isRetur ? '#dc2626' : isOtw ? '#2563eb' : '#f97316',
-                        color: '#ffffff',
-                        fontSize: '11px',
-                        fontWeight: '800',
-                      }}
-                    >
-                      {isTerkirim ? '✓' : isRetur ? '↩' : idx + 1}
-                    </span>
-                    <div>
-                      <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-text-dim)' }}>
-                        {order.jenis_barang === 'paket_ekspedisi' ? '📦 RESI EKSPEDISI' : '🛒 TITIP BELI'}
-                      </span>
-                      <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--color-text-main)', margin: 0 }}>
-                        {order.nomor_resi || `Order #${order.id.slice(0, 8)}`}
-                      </h4>
-                    </div>
-                  </div>
-                  <Badge variant={meta.variant}>{meta.label}</Badge>
+          {/* Orders List */}
+          {loading ? (
+            <SkeletonLoader type="list" count={3} />
+          ) : filteredOrders.length === 0 ? (
+            <Card style={{ textAlign: 'center', padding: '36px 20px' }}>
+              <div style={{ fontSize: '42px', marginBottom: '10px' }}>🌴</div>
+              <h4 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--color-text-main)' }}>
+                Tidak ada paket yang sesuai
+              </h4>
+              <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                {searchQuery
+                  ? `Tidak ditemukan hasil untuk "${searchQuery}". Coba kata kunci lain.`
+                  : 'Belum ada antaran pada filter yang Anda pilih saat ini.'}
+              </p>
+              {(statusFilter !== 'semua' || searchQuery) && (
+                <div style={{ marginTop: '12px' }}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setStatusFilter('semua');
+                      setSearchQuery('');
+                    }}
+                  >
+                    Reset Semua Filter
+                  </Button>
                 </div>
+              )}
+            </Card>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {filteredOrders.map((order, idx) => {
+                const meta = getDeliveryStatusMeta(order.status_pengiriman);
+                const isDiHub = order.status_pengiriman === 'diterima_hub';
+                const isOtw = order.status_pengiriman === 'dalam_perjalanan';
+                const isTerkirim = order.status_pengiriman === 'terkirim';
+                const isRetur = order.status_pengiriman === 'retur';
 
-                {/* Info Penerima */}
-                <div
-                  style={{
-                    margin: '10px 0',
-                    padding: '10px',
-                    borderRadius: 'var(--radius-sm)',
-                    background: isRetur ? '#ffffff' : 'var(--color-bg-input)',
-                    boxShadow: 'var(--skeuo-input-sunken)',
-                    fontSize: '12.5px',
-                    lineHeight: '1.5',
-                  }}
-                >
-                  <div>
-                    <b>Penerima:</b> {order.customer?.nama || 'Customer'}
-                  </div>
-                  <div>
-                    <b>Alamat:</b> {order.alamat_tujuan}
-                  </div>
-                  <div>
-                    <b>Barang:</b> {order.deskripsi_barang}
-                  </div>
+                const lat = parseFloat(order.customer?.latitude);
+                const lng = parseFloat(order.customer?.longitude);
+                const hasGps = !isNaN(lat) && !isNaN(lng);
 
-                  {/* Keterangan Pembayaran */}
-                  <div style={{ marginTop: '4px', paddingTop: '4px', borderTop: '1px solid rgba(82,99,90,0.1)' }}>
-                    {isRetur ? (
-                      <div>
-                        <b>Status Retur:</b>{' '}
-                        <span style={{ color: '#dc2626', fontWeight: '800' }}>
-                          ↩️ Barang Dikembalikan ke Hub
-                        </span>
-                        <div style={{ fontSize: '11.5px', color: '#166534', marginTop: '2px', fontWeight: '700' }}>
-                          💰 Ongkir Kurir Diterima: {formatRupiah(order.ongkir_diterima || order.ongkir_patokan || 0)}
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <b>Pembayaran:</b>{' '}
+                const isSelected = selectedOrder?.id === order.id;
+
+                // Cek status apakah kartu ini sedang diperbesar atau diperkecil (persistent di localStorage)
+                const isExpanded = expandedCards[order.id] !== undefined ? expandedCards[order.id] : defaultCardsExpanded;
+
+                return (
+                  <Card
+                    key={order.id}
+                    id={`order-card-${order.id}`}
+                    padding="14px 16px"
+                    style={{
+                      border: isSelected
+                        ? '2px solid var(--color-primary)'
+                        : isRetur
+                        ? '1px solid #fca5a5'
+                        : isTerkirim
+                        ? '1px solid #86efac'
+                        : '1px solid var(--color-border)',
+                      background: isRetur ? '#fff5f5' : 'var(--color-bg-card)',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    {/* Header Kartu: NAMA PENERIMA SEBAGAI JUDUL UTAMA + Status + Tombol Expand/Collapse */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div
+                        onClick={() => toggleCardExpand(order.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          flex: 1,
+                          minWidth: 0,
+                          cursor: 'pointer',
+                        }}
+                      >
                         <span
                           style={{
-                            fontWeight: '700',
-                            color: order.metode_pembayaran === 'COD' ? 'var(--color-danger)' : 'var(--color-primary)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '50%',
+                            background: isTerkirim ? '#16a34a' : isRetur ? '#dc2626' : isOtw ? '#2563eb' : '#f97316',
+                            color: '#ffffff',
+                            fontSize: '12px',
+                            fontWeight: '800',
+                            flexShrink: 0,
                           }}
                         >
-                          {order.metode_pembayaran === 'COD'
-                            ? `💵 COD: Rp ${(order.ongkir_patokan || 0).toLocaleString('id-ID')}`
-                            : '🏦 Transfer Lunas'}
+                          {isTerkirim ? '✓' : isRetur ? '↩' : idx + 1}
                         </span>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          {/* Nama Penerima Besar & Menonjol */}
+                          <h4
+                            style={{
+                              fontSize: '15px',
+                              fontWeight: '900',
+                              color: 'var(--color-text-main)',
+                              margin: 0,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                          >
+                            👤 {order.customer?.nama || 'Penerima Paket'}
+                          </h4>
+                          {/* Nomor Resi di Bawah Nama Penerima */}
+                          <div style={{ fontSize: '11px', color: 'var(--color-text-dim)', fontWeight: '600', marginTop: '1px' }}>
+                            <span>Resi: <b>{order.nomor_resi || `Order #${order.id.slice(0, 8)}`}</b></span>
+                            {order.alamat_tujuan && (
+                              <span style={{ marginLeft: '6px', opacity: 0.85 }}>
+                                • {order.alamat_tujuan.split(',')[0]}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                        <Badge variant={meta.variant}>{meta.label}</Badge>
+                        {/* Tombol Toggle Per Card (Besarkan/Kecilkan) */}
+                        <button
+                          type="button"
+                          onClick={() => toggleCardExpand(order.id)}
+                          title={isExpanded ? 'Kecilkan data paket ini' : 'Besarkan detail data paket ini'}
+                          style={{
+                            background: 'var(--color-bg-input)',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: '6px',
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            color: 'var(--color-text-muted)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {isExpanded ? '▲' : '▼'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* DETAIL KARTU (Hanya Muncul Saat Mode Diperbesar / Expanded) */}
+                    {isExpanded && (
+                      <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid rgba(82,99,90,0.1)' }}>
+                        {/* Info Penerima Lengkap */}
+                        <div
+                          style={{
+                            marginBottom: '10px',
+                            padding: '10px',
+                            borderRadius: 'var(--radius-sm)',
+                            background: isRetur ? '#ffffff' : 'var(--color-bg-input)',
+                            boxShadow: 'var(--skeuo-input-sunken)',
+                            fontSize: '12.5px',
+                            lineHeight: '1.5',
+                          }}
+                        >
+                          <div>
+                            <b>📍 Alamat Lengkap:</b> {order.alamat_tujuan}
+                          </div>
+                          <div style={{ marginTop: '2px' }}>
+                            <b>📦 Deskripsi Barang:</b> {order.deskripsi_barang}
+                          </div>
+
+                          {/* Keterangan Pembayaran & Ongkir Kurir */}
+                          <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid rgba(82,99,90,0.1)' }}>
+                            {isRetur ? (
+                              <div>
+                                <b>Status Retur:</b>{' '}
+                                <span style={{ color: '#dc2626', fontWeight: '800' }}>
+                                  ↩️ Paket Dikembalikan ke Hub
+                                </span>
+                                <div style={{ fontSize: '11.5px', color: '#166534', marginTop: '2px', fontWeight: '700' }}>
+                                  💰 Ongkir Kurir Diterima: {formatRupiah(order.ongkir_diterima || order.ongkir_patokan || 0)}
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                <b>Pembayaran:</b>{' '}
+                                <span
+                                  style={{
+                                    fontWeight: '700',
+                                    color: order.metode_pembayaran === 'COD' ? 'var(--color-danger)' : 'var(--color-primary)',
+                                  }}
+                                >
+                                  {order.metode_pembayaran === 'COD'
+                                    ? `💵 COD: Rp ${(order.ongkir_patokan || 0).toLocaleString('id-ID')}`
+                                    : '🏦 Transfer Lunas'}
+                                </span>
+                                {order.metode_pembayaran !== 'COD' && (
+                                  <div style={{ fontSize: '11.5px', color: '#166534', fontWeight: '700', marginTop: '2px' }}>
+                                    💰 Tagih Ongkir Kurir Tunai: Rp {(order.ongkir_patokan || 0).toLocaleString('id-ID')}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Tombol Navigasi Google Maps & WhatsApp Baru (Dengan Nama Kurir Dinamis & Nominal Uang) */}
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                          {hasGps ? (
+                            <a
+                              href={`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                flex: 1,
+                                textAlign: 'center',
+                                background: '#0284c7',
+                                color: '#ffffff',
+                                padding: '8px 10px',
+                                borderRadius: 'var(--radius-sm)',
+                                textDecoration: 'none',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px',
+                                boxShadow: '0 2px 6px rgba(2, 132, 199, 0.3)',
+                              }}
+                            >
+                              <span>🗺️</span>
+                              <span>Rute Google Maps</span>
+                            </a>
+                          ) : (
+                            <span
+                              style={{
+                                flex: 1,
+                                textAlign: 'center',
+                                background: 'rgba(0,0,0,0.05)',
+                                color: 'var(--color-text-muted)',
+                                padding: '8px 10px',
+                                borderRadius: 'var(--radius-sm)',
+                                fontSize: '11px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              📍 Titik GPS belum ada
+                            </span>
+                          )}
+
+                          {order.customer?.no_hp && (
+                            <a
+                              href={`https://wa.me/${order.customer.no_hp.replace(/^0/, '62')}?text=${encodeURIComponent(
+                                generateWaMessage(order)
+                              )}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                textAlign: 'center',
+                                background: '#22c55e',
+                                color: '#ffffff',
+                                padding: '8px 12px',
+                                borderRadius: 'var(--radius-sm)',
+                                textDecoration: 'none',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '5px',
+                                boxShadow: '0 2px 6px rgba(34, 197, 94, 0.3)',
+                              }}
+                            >
+                              <span>💬</span>
+                              <span>WhatsApp</span>
+                            </a>
+                          )}
+                        </div>
+
+                        {/* Action Buttons Kurir */}
+                        <div>
+                          {isDiHub && (
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedOrder(order);
+                                  setConfirmMulaiSheet(true);
+                                }}
+                                style={{ flex: 1 }}
+                              >
+                                🚀 Mulai Antar Paket Ini
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openReturDialog(order)}
+                                style={{ color: '#dc2626', borderColor: '#fca5a5' }}
+                              >
+                                ↩️ Retur
+                              </Button>
+                            </div>
+                          )}
+
+                          {isOtw && (
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                onClick={() => {
+                                  setSelectedOrder(order);
+                                  setCodAmount(order.ongkir_patokan > 0 ? String(order.ongkir_patokan) : '');
+                                  setSelesaiSheetOpen(true);
+                                }}
+                                style={{ flex: 2 }}
+                              >
+                                ✅ Selesai Antar
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openReturDialog(order)}
+                                style={{ flex: 1, color: '#dc2626', borderColor: '#fca5a5' }}
+                              >
+                                ↩️ Retur Paket
+                              </Button>
+                            </div>
+                          )}
+
+                          {isTerkirim && (
+                            <div
+                              style={{
+                                width: '100%',
+                                textAlign: 'center',
+                                fontSize: '12px',
+                                color: '#16a34a',
+                                fontWeight: '700',
+                                padding: '6px',
+                                background: '#ecfdf5',
+                                borderRadius: '6px',
+                              }}
+                            >
+                              ✓ Paket Berhasil Diterima Customer
+                            </div>
+                          )}
+
+                          {isRetur && (
+                            <div
+                              style={{
+                                width: '100%',
+                                textAlign: 'center',
+                                fontSize: '12px',
+                                color: '#b91c1c',
+                                fontWeight: '700',
+                                padding: '6px',
+                                background: '#fef2f2',
+                                borderRadius: '6px',
+                              }}
+                            >
+                              ↩️ Paket Diretur (Kompensasi Ongkir Dicatat)
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
-                  </div>
-                </div>
-
-                {/* Tombol Navigasi Google Maps & WhatsApp Langsung */}
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
-                  {hasGps ? (
-                    <a
-                      href={`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        flex: 1,
-                        textAlign: 'center',
-                        background: '#0284c7',
-                        color: '#ffffff',
-                        padding: '8px 10px',
-                        borderRadius: 'var(--radius-sm)',
-                        textDecoration: 'none',
-                        fontSize: '12px',
-                        fontWeight: '700',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                        boxShadow: '0 2px 6px rgba(2, 132, 199, 0.3)',
-                      }}
-                    >
-                      <span>🗺️</span>
-                      <span>Rute Google Maps</span>
-                    </a>
-                  ) : (
-                    <span
-                      style={{
-                        flex: 1,
-                        textAlign: 'center',
-                        background: 'rgba(0,0,0,0.05)',
-                        color: 'var(--color-text-muted)',
-                        padding: '8px 10px',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: '11px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      📍 Titik GPS belum ada
-                    </span>
-                  )}
-
-                  {order.customer?.no_hp && (
-                    <a
-                      href={`https://wa.me/${order.customer.no_hp.replace(/^0/, '62')}?text=${encodeURIComponent(
-                        `Halo ${order.customer.nama}, saya kurir Jastip Pelosok sedang mengantar paket Anda (${order.nomor_resi || 'Paket'}).`
-                      )}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        textAlign: 'center',
-                        background: '#22c55e',
-                        color: '#ffffff',
-                        padding: '8px 12px',
-                        borderRadius: 'var(--radius-sm)',
-                        textDecoration: 'none',
-                        fontSize: '12px',
-                        fontWeight: '700',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '5px',
-                        boxShadow: '0 2px 6px rgba(34, 197, 94, 0.3)',
-                      }}
-                    >
-                      <span>💬</span>
-                      <span>WhatsApp</span>
-                    </a>
-                  )}
-                </div>
-
-                {/* Action Buttons Kurir */}
-                <div>
-                  {isDiHub && (
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setSelectedOrder(order);
-                          setConfirmMulaiSheet(true);
-                        }}
-                        style={{ flex: 1 }}
-                      >
-                        🚀 Mulai Antar Paket Ini
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openReturDialog(order)}
-                        style={{ color: '#dc2626', borderColor: '#fca5a5' }}
-                      >
-                        ↩️ Retur
-                      </Button>
-                    </div>
-                  )}
-
-                  {isOtw && (
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={() => {
-                          setSelectedOrder(order);
-                          setCodAmount(order.ongkir_patokan > 0 ? String(order.ongkir_patokan) : '');
-                          setSelesaiSheetOpen(true);
-                        }}
-                        style={{ flex: 2 }}
-                      >
-                        ✅ Selesai Antar
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openReturDialog(order)}
-                        style={{ flex: 1, color: '#dc2626', borderColor: '#fca5a5' }}
-                      >
-                        ↩️ Retur Paket
-                      </Button>
-                    </div>
-                  )}
-
-                  {isTerkirim && (
-                    <div
-                      style={{
-                        width: '100%',
-                        textAlign: 'center',
-                        fontSize: '12px',
-                        color: '#16a34a',
-                        fontWeight: '700',
-                        padding: '6px',
-                        background: '#ecfdf5',
-                        borderRadius: '6px',
-                      }}
-                    >
-                      ✓ Paket Berhasil Diterima Customer
-                    </div>
-                  )}
-
-                  {isRetur && (
-                    <div
-                      style={{
-                        width: '100%',
-                        textAlign: 'center',
-                        fontSize: '12px',
-                        color: '#b91c1c',
-                        fontWeight: '700',
-                        padding: '6px',
-                        background: '#fef2f2',
-                        borderRadius: '6px',
-                      }}
-                    >
-                      ↩️ Paket Diretur (Kompensasi Ongkir Dicatat)
-                    </div>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
