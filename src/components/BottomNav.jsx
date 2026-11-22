@@ -52,12 +52,6 @@ export default function BottomNav({ role = 'customer' }) {
           path: '/dashboard-kurir?tab=selesai',
           icon: '✅',
         },
-        {
-          id: 'profil',
-          label: 'Profil',
-          path: '/dashboard-kurir?tab=profil',
-          icon: '👤',
-        },
       ];
     }
 
@@ -115,9 +109,7 @@ export default function BottomNav({ role = 'customer' }) {
           } else if (tab.id === 'scan') {
             isActive = location.search.includes('tab=scan');
           } else if (tab.id === 'riwayat-kurir') {
-            isActive = location.search.includes('tab=selesai');
-          } else if (tab.id === 'profil') {
-            isActive = location.search.includes('tab=profil');
+            isActive = location.search.includes('tab=selesai') || location.search.includes('status=terkirim');
           }
         } else if (tab.id === 'home' && location.pathname === '/dashboard-customer') {
           isActive = true;

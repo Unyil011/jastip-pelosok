@@ -15,6 +15,7 @@ import BottomSheet from '../components/BottomSheet';
 import ConfirmationSheet from '../components/ConfirmationSheet';
 import SkeletonLoader from '../components/SkeletonLoader';
 import DeliveryMap from '../components/DeliveryMap';
+import Sidebar from '../components/Sidebar';
 import {
   formatRupiah,
   getDeliveryStatusMeta,
@@ -30,6 +31,10 @@ export default function DashboardKurir() {
 
   const searchParams = new URLSearchParams(location.search);
   const activeMainTab = searchParams.get('tab') || (searchParams.get('status') === 'terkirim' ? 'selesai' : 'antaran');
+
+  // Sidebar & Profil Drawer States (Sama Seperti di Akun Customer)
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [profileSheetOpen, setProfileSheetOpen] = useState(false);
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -822,15 +827,15 @@ export default function DashboardKurir() {
           padding: '4px 2px',
         }}
       >
-        {/* Sapaan Kurir & Wilayah Antaran (Klik membuka Tab Profil) */}
+        {/* Sapaan Kurir & Wilayah Antaran (Klik membuka Sidebar Profil) */}
         <div
-          onClick={() => navigate('/dashboard-kurir?tab=profil')}
+          onClick={() => setSidebarOpen(true)}
           style={{
             cursor: 'pointer',
             display: 'flex',
             flexDirection: 'column',
           }}
-          title="Klik untuk buka profil kurir"
+          title="Buka Menu Akun & Profil Kurir"
         >
           <span
             style={{
@@ -908,10 +913,10 @@ export default function DashboardKurir() {
             🔄
           </button>
 
-          {/* Avatar Profil Kurir -> Klik Buka Tab Profil */}
+          {/* Avatar Profil Kurir -> Klik Buka Sidebar Profil */}
           <button
-            onClick={() => navigate('/dashboard-kurir?tab=profil')}
-            title="Buka Halaman Profil Kurir"
+            onClick={() => setSidebarOpen(true)}
+            title="Buka Menu Akun & Profil Kurir"
             style={{
               background: 'none',
               border: 'none',
@@ -970,199 +975,8 @@ export default function DashboardKurir() {
         </div>
       </div>
 
-      {/* ======================================================== */}
-      {/* KONDISIONAL TAMPILAN BERDASARKAN TAB DI BOTTOM NAV / URL */}
-      {/* ======================================================== */}
-
-      {/* TAB 4: PROFIL MITRA KURIR */}
-      {activeMainTab === 'profil' ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <Card
-            title="Profil Mitra Kurir 👤"
-            subtitle="Informasi identitas kurir, wilayah tugas, dan rekening pencairan ongkir"
-          >
-            {/* Foto Profil & Upload Foto WebP */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '18px' }}>
-              <div style={{ position: 'relative' }}>
-                {profileFotoUrl ? (
-                  <img
-                    src={profileFotoUrl}
-                    alt="Foto Profil"
-                    style={{
-                      width: '88px',
-                      height: '88px',
-                      borderRadius: '50%',
-                      objectFit: 'cover',
-                      border: '3px solid var(--color-primary)',
-                      boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: '88px',
-                      height: '88px',
-                      borderRadius: '50%',
-                      background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary) 100%)',
-                      color: '#ffffff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '32px',
-                      fontWeight: '800',
-                      border: '3px solid #ffffff',
-                      boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
-                    }}
-                  >
-                    {profileName ? profileName.charAt(0).toUpperCase() : '🛵'}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => profileFileInputRef.current?.click()}
-                  title="Ganti Foto Profil"
-                  style={{
-                    position: 'absolute',
-                    bottom: '2px',
-                    right: '2px',
-                    background: 'var(--color-primary)',
-                    color: '#ffffff',
-                    border: '2px solid #ffffff',
-                    borderRadius: '50%',
-                    width: '30px',
-                    height: '30px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
-                  }}
-                >
-                  📷
-                </button>
-              </div>
-
-              <input
-                ref={profileFileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleKurirFotoChange}
-                style={{ display: 'none' }}
-              />
-
-              {compressingFoto && (
-                <span style={{ fontSize: '11px', color: 'var(--color-primary)', marginTop: '6px', fontWeight: '700' }}>
-                  Mengompres & memproses foto...
-                </span>
-              )}
-            </div>
-
-            {/* Form Profil Kurir */}
-            <form onSubmit={handleSaveKurirProfile} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <Input
-                label="Nama Lengkap Kurir"
-                type="text"
-                value={profileName}
-                onChange={(e) => setProfileName(e.target.value)}
-                placeholder="Nama kurir yang tampil ke customer"
-                required
-              />
-
-              <Input
-                label="Nomor WhatsApp / HP"
-                type="tel"
-                value={profilePhone}
-                onChange={(e) => setProfilePhone(e.target.value)}
-                placeholder="08xxxxxxxxxx"
-                required
-              />
-
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '6px' }}>
-                  Wilayah / Jalur Tugas Utama
-                </label>
-                <select
-                  value={profileAlamat}
-                  onChange={(e) => setProfileAlamat(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: 'var(--radius-sm)',
-                    border: '1.5px solid var(--color-border)',
-                    fontSize: '13px',
-                    background: 'var(--color-bg-card)',
-                    color: 'var(--color-text-main)',
-                  }}
-                >
-                  <option value="Semua Desa (Default)">Semua Desa se-Kecamatan Naringgul</option>
-                  {desaList.map((d) => (
-                    <option key={d.id} value={`Desa ${d.nama_desa}`}>
-                      Desa {d.nama_desa}
-                    </option>
-                  ))}
-                </select>
-                <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px', display: 'block' }}>
-                  Sistem scan akan mencocokkan resi dengan wilayah tugas yang Anda pilih di sini.
-                </span>
-              </div>
-
-              <Input
-                label="Nomor Akun DANA (Pencairan Kas Ongkir)"
-                type="tel"
-                value={profileDana}
-                onChange={(e) => setProfileDana(e.target.value)}
-                placeholder="Nomor HP terdaftar di DANA"
-                helperText="Digunakan untuk penyerahan/pencairan kas ongkir kurir"
-              />
-
-              <div
-                style={{
-                  background: '#ecfdf5',
-                  border: '1px solid #a7f3d0',
-                  borderRadius: 'var(--radius-sm)',
-                  padding: '10px 12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '12px',
-                  color: '#065f46',
-                  fontWeight: '700',
-                }}
-              >
-                <span>🟢</span>
-                <span>Mitra Kurir Lapangan Resmi Jastip Pelosok</span>
-              </div>
-
-              <Button type="submit" loading={savingProfile} style={{ width: '100%', marginTop: '6px' }}>
-                💾 Simpan Perubahan Profil
-              </Button>
-            </form>
-          </Card>
-
-          {/* Tombol Navigasi Cepat & Keluar Akun */}
-          <Card padding="14px">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <Button
-                variant="outline"
-                onClick={() => navigate('/dashboard-kurir?tab=antaran')}
-                style={{ width: '100%' }}
-              >
-                🛵 Kembali ke Daftar Antaran
-              </Button>
-              <Button
-                variant="danger"
-                onClick={() => setLogoutSheetOpen(true)}
-                style={{ width: '100%' }}
-              >
-                🚪 Keluar dari Akun Kurir
-              </Button>
-            </div>
-          </Card>
-        </div>
-      ) : (
-        /* TAB 1 (ANTARAN) & TAB 3 (SELESAI) */
-        <div>
+      {/* Konten Utama Antaran & Selesai Kurir */}
+      <div>
           {/* Ringkasan Performa & Kas Harian (Daily Metrics Card) */}
           <Card
             padding="14px 16px"
@@ -1851,7 +1665,6 @@ export default function DashboardKurir() {
             </div>
           )}
         </div>
-      )}
 
       {/* Confirmation Sheet Mulai Antar */}
       <ConfirmationSheet
@@ -2561,6 +2374,187 @@ export default function DashboardKurir() {
         confirmVariant="danger"
         loading={logoutLoading}
       />
+
+      {/* Drawer Sidebar Menu Kanan (Pengaturan & Akun Kurir - Sama Persis Seperti Customer) */}
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onOpenAddressModal={() => setProfileSheetOpen(true)}
+        onTriggerLogout={() => setLogoutSheetOpen(true)}
+      />
+
+      {/* BottomSheet Edit Profil & Wilayah Tugas Kurir (Dibuka dari Sidebar) */}
+      <BottomSheet
+        isOpen={profileSheetOpen}
+        onClose={() => setProfileSheetOpen(false)}
+        title="👤 Edit Profil & Wilayah Tugas"
+      >
+        <div style={{ padding: '0 0 16px 0', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* Foto Profil & Upload Foto WebP */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '8px' }}>
+            <div style={{ position: 'relative' }}>
+              {profileFotoUrl ? (
+                <img
+                  src={profileFotoUrl}
+                  alt="Foto Profil"
+                  style={{
+                    width: '84px',
+                    height: '84px',
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: '3px solid var(--color-primary)',
+                    boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: '84px',
+                    height: '84px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary) 100%)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '32px',
+                    fontWeight: '800',
+                    border: '3px solid #ffffff',
+                    boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
+                  }}
+                >
+                  {profileName ? profileName.charAt(0).toUpperCase() : '🛵'}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => profileFileInputRef.current?.click()}
+                title="Ganti Foto Profil"
+                style={{
+                  position: 'absolute',
+                  bottom: '0px',
+                  right: '0px',
+                  background: 'var(--color-primary)',
+                  color: '#ffffff',
+                  border: '2px solid #ffffff',
+                  borderRadius: '50%',
+                  width: '28px',
+                  height: '28px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+                }}
+              >
+                📷
+              </button>
+            </div>
+
+            <input
+              ref={profileFileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleKurirFotoChange}
+              style={{ display: 'none' }}
+            />
+
+            {compressingFoto && (
+              <span style={{ fontSize: '11px', color: 'var(--color-primary)', marginTop: '6px', fontWeight: '700' }}>
+                Mengompres & memproses foto...
+              </span>
+            )}
+          </div>
+
+          {/* Form Profil Kurir */}
+          <form
+            onSubmit={async (e) => {
+              await handleSaveKurirProfile(e);
+              setProfileSheetOpen(false);
+            }}
+            style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}
+          >
+            <Input
+              label="Nama Lengkap Kurir"
+              type="text"
+              value={profileName}
+              onChange={(e) => setProfileName(e.target.value)}
+              placeholder="Nama kurir yang tampil ke customer"
+              required
+            />
+
+            <Input
+              label="Nomor WhatsApp / HP"
+              type="tel"
+              value={profilePhone}
+              onChange={(e) => setProfilePhone(e.target.value)}
+              placeholder="08xxxxxxxxxx"
+              required
+            />
+
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '6px' }}>
+                Wilayah / Jalur Tugas Utama
+              </label>
+              <select
+                value={profileAlamat}
+                onChange={(e) => setProfileAlamat(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1.5px solid var(--color-border)',
+                  fontSize: '13px',
+                  background: 'var(--color-bg-card)',
+                  color: 'var(--color-text-main)',
+                }}
+              >
+                <option value="Semua Desa (Default)">Semua Desa se-Kecamatan Naringgul</option>
+                {desaList.map((d) => (
+                  <option key={d.id} value={`Desa ${d.nama_desa}`}>
+                    Desa {d.nama_desa}
+                  </option>
+                ))}
+              </select>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px', display: 'block' }}>
+                Sistem scan akan mencocokkan resi dengan wilayah tugas Anda.
+              </span>
+            </div>
+
+            <Input
+              label="Nomor Akun DANA (Pencairan Kas Ongkir)"
+              type="tel"
+              value={profileDana}
+              onChange={(e) => setProfileDana(e.target.value)}
+              placeholder="Nomor HP terdaftar di DANA"
+              helperText="Digunakan untuk penyerahan/pencairan kas ongkir kurir"
+            />
+
+            <div
+              style={{
+                background: '#ecfdf5',
+                border: '1px solid #a7f3d0',
+                borderRadius: 'var(--radius-sm)',
+                padding: '8px 10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '11.5px',
+                color: '#065f46',
+                fontWeight: '700',
+              }}
+            >
+              <span>🟢</span>
+              <span>Mitra Kurir Lapangan Resmi Jastip Pelosok</span>
+            </div>
+
+            <Button type="submit" loading={savingProfile} style={{ width: '100%', marginTop: '4px' }}>
+              💾 Simpan Perubahan Profil
+            </Button>
+          </form>
+        </div>
+      </BottomSheet>
 
       {/* Bottom Nav */}
       <BottomNav role="kurir" />

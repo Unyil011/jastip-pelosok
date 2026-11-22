@@ -168,7 +168,7 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
                   textOverflow: 'ellipsis',
                 }}
               >
-                {profile?.nama || 'Pelanggan'}
+                {profile?.nama || (profile?.role === 'kurir' ? 'Mitra Kurir' : 'Pelanggan')}
               </h4>
               <p
                 style={{
@@ -180,13 +180,41 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
                   textOverflow: 'ellipsis',
                 }}
               >
-                {profile?.no_hp ? `📱 ${profile.no_hp}` : 'Belum ada nomor WA'}
+                {profile?.no_hp ? `📱 ${profile.no_hp}` : profile?.role === 'kurir' ? 'Mitra Kurir Lapangan' : 'Belum ada nomor WA'}
               </p>
+              {profile?.role === 'kurir' && (
+                <p
+                  style={{
+                    fontSize: '11px',
+                    color: 'var(--color-text-dim)',
+                    margin: '2px 0 0 0',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  📍 {profile?.alamat || 'Semua Desa'} {profile?.nomor_dana ? `• DANA: ${profile.nomor_dana}` : ''}
+                </p>
+              )}
             </div>
           </div>
 
           <div style={{ marginTop: '12px' }}>
-            {isProfileComplete ? (
+            {profile?.role === 'kurir' ? (
+              <span
+                style={{
+                  display: 'inline-block',
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  background: '#22c55e',
+                  color: '#ffffff',
+                  padding: '3px 9px',
+                  borderRadius: '999px',
+                }}
+              >
+                ✓ Mitra Kurir Terverifikasi
+              </span>
+            ) : isProfileComplete ? (
               <span
                 style={{
                   display: 'inline-block',
@@ -224,7 +252,7 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
             Pengaturan Akun
           </div>
 
-          {/* Opsi Edit Profil & Alamat */}
+          {/* Opsi Edit Profil & Alamat / Wilayah Tugas */}
           <button
             onClick={() => {
               onClose();
@@ -249,10 +277,10 @@ export default function Sidebar({ isOpen, onClose, onOpenAddressModal, onTrigger
               <span style={{ fontSize: '20px' }}>👤</span>
               <div>
                 <span style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-main)', display: 'block' }}>
-                  Edit Profil, Foto & Alamat
+                  {profile?.role === 'kurir' ? 'Edit Profil & Wilayah Tugas' : 'Edit Profil, Foto & Alamat'}
                 </span>
                 <span style={{ fontSize: '11.5px', color: 'var(--color-text-muted)' }}>
-                  Ubah data identitas, foto & GPS rumah
+                  {profile?.role === 'kurir' ? 'Ubah data diri, nomor DANA & wilayah' : 'Ubah data identitas, foto & GPS rumah'}
                 </span>
               </div>
             </div>
