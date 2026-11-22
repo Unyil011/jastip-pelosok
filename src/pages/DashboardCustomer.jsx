@@ -1066,58 +1066,241 @@ export default function DashboardCustomer() {
         </Card>
       </div>
 
-      {/* 5. Informasi Biaya Paket & Ongkir (Disesuaikan oleh Kurir) */}
+      {/* 5. Tutorial / Panduan Rinci Cara Pemesanan dari E-Commerce */}
       <Card
-        title="Informasi Biaya Paket & Ongkir"
-        subtitle="Dikonfirmasi langsung oleh kurir lapangan"
+        title="Tutorial Pemesanan Paket 📖"
+        subtitle="Panduan mudah mulai dari menyalin nomor resi e-commerce"
         style={{ marginBottom: '16px' }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <p style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', margin: 0, lineHeight: '1.5' }}>
-            Biaya harga paket dan ongkir antaran ke pelosok dihitung dan disesuaikan langsung oleh kurir saat barang tiba atau diproses, sehingga lebih adil & transparan sesuai jarak desa.
+            Ikuti 5 langkah praktis berikut agar belanjaan online Anda dari kota diantar kurir kami langsung ke rumah di pelosok desa:
           </p>
 
-          {/* Kotak Contoh Perhitungan Nyata Sesuai Permintaan */}
-          <div
-            style={{
-              padding: '14px',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--color-bg-base)',
-              boxShadow: 'var(--skeuo-input-sunken)',
-              border: '1px solid rgba(82, 99, 90, 0.12)',
-            }}
-          >
-            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-primary-dark)', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>
-              📋 Contoh Rincian Tagihan Kurir
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px' }}>
-              <span style={{ color: 'var(--color-text-muted)' }}>Jumlah Paket:</span>
-              <span style={{ fontWeight: '700', color: 'var(--color-text-main)' }}>2 Paket</span>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px' }}>
-              <span style={{ color: 'var(--color-text-muted)' }}>Harga Barang (COD):</span>
-              <span style={{ fontWeight: '700', color: 'var(--color-text-main)' }}>Rp 100.000</span>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '10px' }}>
-              <span style={{ color: 'var(--color-text-muted)' }}>Ongkir Antaran Kurir:</span>
-              <span style={{ fontWeight: '700', color: 'var(--color-primary)' }}>Rp 10.000</span>
-            </div>
-
+          {/* Stepper Timeline Visual */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {/* Step 1 */}
             <div
               style={{
-                borderTop: '1px dashed var(--color-border)',
-                paddingTop: '8px',
                 display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
+                gap: '12px',
+                alignItems: 'flex-start',
+                padding: '12px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--color-bg-base)',
+                boxShadow: 'var(--skeuo-input-sunken)',
+                border: '1px solid rgba(82, 99, 90, 0.12)',
               }}
             >
-              <span style={{ fontSize: '13px', fontWeight: '800', color: 'var(--color-text-main)' }}>Total Bayar di Tempat:</span>
-              <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--color-primary-dark)' }}>Rp 110.000</span>
+              <div
+                style={{
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: '800',
+                  fontSize: '13px',
+                  flexShrink: 0,
+                  boxShadow: '0 2px 5px rgba(16, 185, 129, 0.35)',
+                }}
+              >
+                1
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '13.5px', fontWeight: '800', color: 'var(--color-text-main)', marginBottom: '3px' }}>
+                  Buka Aplikasi Belanja (E-Commerce) 🛍️
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.45' }}>
+                  Buka aplikasi tempat Anda berbelanja online (seperti <b>Shopee</b>, <b>TikTok Shop</b>, <b>Lazada</b>, atau <b>Tokopedia</b>).
+                </div>
+              </div>
             </div>
+
+            {/* Step 2 */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '12px',
+                alignItems: 'flex-start',
+                padding: '12px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--color-bg-base)',
+                boxShadow: 'var(--skeuo-input-sunken)',
+                border: '1px solid rgba(82, 99, 90, 0.12)',
+              }}
+            >
+              <div
+                style={{
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: '800',
+                  fontSize: '13px',
+                  flexShrink: 0,
+                  boxShadow: '0 2px 5px rgba(59, 130, 246, 0.35)',
+                }}
+              >
+                2
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '13.5px', fontWeight: '800', color: 'var(--color-text-main)', marginBottom: '3px' }}>
+                  Buka Menu Pesanan & Rincian Kirim 📦
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.45' }}>
+                  Masuk ke menu <b>Pesanan Saya</b> / <b>Dikirim</b>, lalu klik pesanan yang sedang berjalan menuju kecamatan.
+                </div>
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '12px',
+                alignItems: 'flex-start',
+                padding: '12px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--color-bg-base)',
+                boxShadow: 'var(--skeuo-input-sunken)',
+                border: '1px solid rgba(82, 99, 90, 0.12)',
+              }}
+            >
+              <div
+                style={{
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: '800',
+                  fontSize: '13px',
+                  flexShrink: 0,
+                  boxShadow: '0 2px 5px rgba(245, 158, 11, 0.35)',
+                }}
+              >
+                3
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '13.5px', fontWeight: '800', color: 'var(--color-text-main)', marginBottom: '3px' }}>
+                  Salin (Copas) Nomor Resi Paket 📋
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.45' }}>
+                  Temukan bagian <b>Nomor Resi / No. Pelacakan</b> (contoh: <code>SPXID04829...</code>, <code>JX12345...</code>), lalu tekan tombol <b>SALIN</b>.
+                </div>
+              </div>
+            </div>
+
+            {/* Step 4 */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '12px',
+                alignItems: 'flex-start',
+                padding: '12px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--color-bg-base)',
+                boxShadow: 'var(--skeuo-input-sunken)',
+                border: '1px solid rgba(82, 99, 90, 0.12)',
+              }}
+            >
+              <div
+                style={{
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: '800',
+                  fontSize: '13px',
+                  flexShrink: 0,
+                  boxShadow: '0 2px 5px rgba(139, 92, 246, 0.35)',
+                }}
+              >
+                4
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '13.5px', fontWeight: '800', color: 'var(--color-text-main)', marginBottom: '3px' }}>
+                  Buka Jastip Pelosok & Buat Order ✍️
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.45' }}>
+                  Kembali ke web ini, tekan tombol hijau <b>(+) Buat Order</b> di bawah, lalu <b>Tempelkan (Paste)</b> nomor resi serta pilih desa tujuan Anda.
+                </div>
+              </div>
+            </div>
+
+            {/* Step 5 */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '12px',
+                alignItems: 'flex-start',
+                padding: '12px',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(46, 125, 50, 0.08)',
+                boxShadow: 'var(--skeuo-input-sunken)',
+                border: '1.5px solid var(--color-primary)',
+              }}
+            >
+              <div
+                style={{
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary) 100%)',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: '800',
+                  fontSize: '13px',
+                  flexShrink: 0,
+                  boxShadow: '0 2px 6px rgba(46, 125, 50, 0.4)',
+                }}
+              >
+                5
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '13.5px', fontWeight: '800', color: 'var(--color-primary-dark)', marginBottom: '3px' }}>
+                  Kurir Antar Paket Sampai Rumah 🛵💨
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-main)', lineHeight: '1.45' }}>
+                  Begitu paket tiba di kantor hub kecamatan, kurir kami langsung mengambilnya dan mengantarkannya tepat ke depan pintu rumah Anda di pelosok desa.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Tombol Aksi Langsung Buat Order */}
+          <div style={{ marginTop: '4px' }}>
+            <Button
+              onClick={() => handleStartOrder('paket_ekspedisi')}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                fontWeight: '800',
+              }}
+            >
+              <span>📦</span>
+              <span>Buat Order Sekarang</span>
+            </Button>
           </div>
         </div>
       </Card>
