@@ -173,24 +173,49 @@ export const orderService = {
   },
 
   /**
-   * Kurir: Ambil Order Aktif di Jalur Kurir (status 'diterima_hub', 'dalam_perjalanan', 'terkirim', atau 'retur')
-   * Termasuk koordinat GPS rumah customer untuk navigasi peta multi-drop
+   * Kurir: Ambil Order Aktif di Wilayah Desa Tugas Kurir
+   * Sesuai instruksi:
+   * 1. Jika kurir memegang desa tertentu (misal: ['Naringgul', 'Balegede']), hanya orderan ke desa tersebut yang tampil.
+   * 2. Jika 1 kurir (default 'Semua Desa'), otomatis semua orderan desa tampil.
    */
-  async getOrdersForKurir(jalurId) {
+  async getOrdersForKurir(kurirProfile) {
     let query = supabase
       .from('orders')
-      .select('*, customer:customer_id (nama, no_hp, alamat, latitude, longitude), jalur:jalur_id (nama_jalur)')
+      .select('*, customer:customer_id (nama, no_hp, alamat, latitude, longitude)')
       .eq('status_konfirmasi', 'dikonfirmasi')
       .in('status_pengiriman', ['diterima_hub', 'dalam_perjalanan', 'terkirim', 'retur'])
       .order('created_at', { ascending: true });
 
-    if (jalurId) {
-      query = query.eq('jalur_id', jalurId);
-    }
-
     const { data, error } = await query;
     if (error) throw error;
-    return data || [];
+    if (!data) return [];
+
+    // Jika kurirProfile string (id jalur lama)
+    if (typeof kurirProfile === 'string') {
+      return data;
+    }
+
+    // Ambil wilayah penugasan desa dari admin (disimpan di kurirProfile.alamat)
+    const wilayah = kurirProfile?.alamat;
+    if (!wilayah || wilayah === 'Semua Desa' || wilayah.toLowerCase().includes('semua')) {
+      return data; // Default: Semua desa untuk kurir tunggal
+    }
+
+    const assignedDesas = wilayah
+      .split(',')
+      .map((d) => d.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (assignedDesas.length === 0) return data;
+
+    // Filter orderan yang alamat_tujuan atau deskripsi_barang mengandung salah satu desa tugas kurir
+    return data.filter((order) => {
+      const alamatLower = (order.alamat_tujuan || '').toLowerCase();
+      const descLower = (order.deskripsi_barang || '').toLowerCase();
+      return assignedDesas.some(
+        (desa) => alamatLower.includes(desa) || descLower.includes(desa)
+      );
+    });
   },
 
   /**

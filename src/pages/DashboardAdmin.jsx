@@ -4,7 +4,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { authService } from '../services/authService';
 import { orderService } from '../services/orderService';
 import { adminService } from '../services/adminService';
-import { villageService } from '../services/villageService';
+import { villageService, NARINGGUL_VILLAGES } from '../services/villageService';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
 import Input from '../components/Input';
@@ -71,6 +71,15 @@ export default function DashboardAdmin() {
   const [newKurirDana, setNewKurirDana] = useState('');
   const [newKurirJalurId, setNewKurirJalurId] = useState('');
   const [savingKurir, setSavingKurir] = useState(false);
+
+  // Modal Atur Penugasan Wilayah Desa Kurir
+  const [editDesaModal, setEditDesaModal] = useState({
+    open: false,
+    kurir: null,
+    isAllVillages: true,
+    selectedDesas: [],
+  });
+  const [savingDesa, setSavingDesa] = useState(false);
 
   // Confirmation & Feedback BottomSheets
   const [actionLoading, setActionLoading] = useState(false);
@@ -338,6 +347,63 @@ export default function DashboardAdmin() {
       });
     } finally {
       setSavingKurir(false);
+    }
+  };
+
+  // Handler Buka Modal Atur Wilayah Desa
+  const handleOpenEditDesa = (kurir) => {
+    const currentStr = kurir.alamat || '';
+    const isAll = !currentStr || currentStr.toLowerCase().includes('semua');
+    const desas = isAll ? [] : currentStr.split(',').map((s) => s.trim()).filter(Boolean);
+    setEditDesaModal({
+      open: true,
+      kurir,
+      isAllVillages: isAll,
+      selectedDesas: desas,
+    });
+  };
+
+  // Handler Checklist Toggle Desa
+  const handleToggleDesa = (desaName) => {
+    setEditDesaModal((prev) => {
+      const exists = prev.selectedDesas.includes(desaName);
+      const nextDesas = exists
+        ? prev.selectedDesas.filter((d) => d !== desaName)
+        : [...prev.selectedDesas, desaName];
+      return {
+        ...prev,
+        isAllVillages: false,
+        selectedDesas: nextDesas,
+      };
+    });
+  };
+
+  // Handler Simpan Penugasan Desa
+  const handleSaveDesa = async () => {
+    if (!editDesaModal.kurir) return;
+    setSavingDesa(true);
+    try {
+      const desasList =
+        editDesaModal.isAllVillages || editDesaModal.selectedDesas.length === 0
+          ? ['Semua Desa']
+          : editDesaModal.selectedDesas;
+
+      await adminService.updateKurirAssignedDesa(editDesaModal.kurir.id, desasList);
+      await loadKurirData();
+      setEditDesaModal({ open: false, kurir: null, isAllVillages: true, selectedDesas: [] });
+      setFeedbackSheet({
+        open: true,
+        title: 'Wilayah Desa Disimpan! ✅',
+        message: `Penugasan desa untuk ${editDesaModal.kurir.nama} berhasil diatur: ${desasList.join(', ')}.`,
+      });
+    } catch (err) {
+      setFeedbackSheet({
+        open: true,
+        title: 'Gagal Menyimpan',
+        message: err.message,
+      });
+    } finally {
+      setSavingDesa(false);
     }
   };
 
@@ -749,9 +815,31 @@ export default function DashboardAdmin() {
                       <p style={{ fontSize: '12.5px', color: 'var(--color-text-main)', marginTop: '4px' }}>
                         💳 <b>DANA:</b> {kurir.nomor_dana || '-'}
                       </p>
-                      <p style={{ fontSize: '12.5px', color: 'var(--color-primary-dark)', marginTop: '2px', fontWeight: '700' }}>
-                        🗺️ Jalur: {kurir.jalur?.nama_jalur || 'Belum Ditentukan'}
+                      <p style={{ fontSize: '12.5px', color: 'var(--color-primary-dark)', marginTop: '4px', fontWeight: '800' }}>
+                        📍 Wilayah Desa: <u>{kurir.alamat || 'Semua Desa (Default)'}</u>
                       </p>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditDesa(kurir)}
+                        style={{
+                          marginTop: '8px',
+                          background: 'var(--color-bg-base)',
+                          border: '1.5px solid var(--color-primary)',
+                          borderRadius: 'var(--radius-sm)',
+                          padding: '6px 12px',
+                          fontSize: '11.5px',
+                          fontWeight: '800',
+                          color: 'var(--color-primary-dark)',
+                          cursor: 'pointer',
+                          boxShadow: 'var(--skeuo-button-raised)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        ⚙️ Atur Wilayah Desa Antaran
+                      </button>
                     </div>
                     <Badge variant={kurir.status_approval === 'approved' ? 'success' : 'warning'}>
                       {kurir.status_approval === 'approved' ? 'Aktif' : kurir.status_approval}
@@ -844,6 +932,96 @@ export default function DashboardAdmin() {
         confirmVariant={confirmOrderSheet.action === 'dikonfirmasi' ? 'primary' : 'danger'}
         loading={actionLoading}
       />
+
+      {/* BottomSheet Atur Wilayah Desa Kurir */}
+      <BottomSheet
+        isOpen={editDesaModal.open}
+        onClose={() => setEditDesaModal({ ...editDesaModal, open: false })}
+        title={`Atur Wilayah: ${editDesaModal.kurir?.nama || 'Kurir'}`}
+      >
+        <div style={{ padding: '4px 0 16px 0', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <p style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', margin: 0, lineHeight: '1.45' }}>
+            Tentukan desa antaran yang dapat diambil oleh kurir ini. Jika hanya ada 1 kurir atau ingin kurir bisa antar ke mana saja, pilih <b>Semua Desa (Default)</b>.
+          </p>
+
+          {/* Opsi 1: Semua Desa (Default) */}
+          <button
+            type="button"
+            onClick={() => setEditDesaModal((prev) => ({ ...prev, isAllVillages: true, selectedDesas: [] }))}
+            style={{
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-md)',
+              border: editDesaModal.isAllVillages ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+              background: editDesaModal.isAllVillages ? 'rgba(46, 125, 50, 0.12)' : 'var(--color-bg-card)',
+              color: editDesaModal.isAllVillages ? 'var(--color-primary-dark)' : 'var(--color-text-main)',
+              fontSize: '13px',
+              fontWeight: '800',
+              cursor: 'pointer',
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              boxShadow: 'var(--skeuo-button-raised)',
+            }}
+          >
+            <span>🌐 Semua Desa (Default - Semua Orderan Masuk)</span>
+            {editDesaModal.isAllVillages && <span style={{ fontSize: '16px' }}>✓</span>}
+          </button>
+
+          {/* Opsi 2: Checklist Desa Tertentu */}
+          <div>
+            <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--color-text-main)', display: 'block', marginBottom: '8px' }}>
+              Atau Pilih Desa Tertentu (Pembagian Rute Tugas):
+            </span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
+              {NARINGGUL_VILLAGES.map((desa) => {
+                const isChecked = !editDesaModal.isAllVillages && editDesaModal.selectedDesas.includes(desa);
+                return (
+                  <button
+                    key={desa}
+                    type="button"
+                    onClick={() => handleToggleDesa(desa)}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      textAlign: 'left',
+                      border: isChecked ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
+                      background: isChecked ? 'rgba(46, 125, 50, 0.12)' : 'var(--color-bg-card)',
+                      color: isChecked ? 'var(--color-primary-dark)' : 'var(--color-text-main)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <span>{desa}</span>
+                    {isChecked && <span style={{ fontSize: '14px', fontWeight: '800' }}>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+            <Button
+              variant="outline"
+              onClick={() => setEditDesaModal({ ...editDesaModal, open: false })}
+              style={{ flex: 1 }}
+            >
+              Batal
+            </Button>
+            <Button
+              onClick={handleSaveDesa}
+              loading={savingDesa}
+              style={{ flex: 1.5 }}
+            >
+              Simpan Penugasan
+            </Button>
+          </div>
+        </div>
+      </BottomSheet>
 
       {/* General Feedback Sheet */}
       <BottomSheet

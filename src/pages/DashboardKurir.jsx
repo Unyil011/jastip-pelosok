@@ -116,7 +116,7 @@ export default function DashboardKurir() {
   const loadKurirOrders = async () => {
     setLoading(true);
     try {
-      const data = await orderService.getOrdersForKurir(profile?.jalur_id);
+      const data = await orderService.getOrdersForKurir(profile);
       setOrders(data);
     } catch (err) {
       console.error('Gagal memuat order kurir:', err);
@@ -127,7 +127,7 @@ export default function DashboardKurir() {
 
   useEffect(() => {
     loadKurirOrders();
-  }, [profile?.jalur_id]);
+  }, [profile?.id, profile?.alamat]);
 
   // Filter Data berdasarkan Tanggal (Hari Ini, Kemarin, Semua)
   const ordersInDateRange = useMemo(() => {
@@ -346,7 +346,7 @@ export default function DashboardKurir() {
               {profile?.nama || 'Kurir Pelosok'}
             </h2>
             <div style={{ display: 'flex', gap: '8px', fontSize: '12px', opacity: 0.9, marginTop: '3px', flexWrap: 'wrap' }}>
-              <span>🛣️ Jalur: <b>{profile?.jalur?.nama_jalur || 'Semua Jalur'}</b></span>
+              <span>📍 Wilayah Antaran: <b>{profile?.alamat || 'Semua Desa (Default)'}</b></span>
               <span>•</span>
               <span>DANA: <b>{profile?.nomor_dana || '-'}</b></span>
             </div>

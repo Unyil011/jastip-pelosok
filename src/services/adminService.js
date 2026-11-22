@@ -40,12 +40,35 @@ export const adminService = {
   async getAllKurirs() {
     const { data, error } = await supabase
       .from('users')
-      .select('id, nama, no_hp, nomor_dana, status_approval, jalur_id, jalur:jalur_id (nama_jalur), created_at')
+      .select('id, nama, no_hp, nomor_dana, status_approval, jalur_id, alamat, created_at')
       .eq('role', 'kurir')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
     return data || [];
+  },
+
+  /**
+   * Admin: Mengatur Desa Tugas untuk Kurir (Fleksibel: Desa Tertentu atau Semua Desa)
+   */
+  async updateKurirAssignedDesa(kurirId, assignedDesaList) {
+    const desaString = Array.isArray(assignedDesaList) && assignedDesaList.length > 0
+      ? assignedDesaList.join(', ')
+      : 'Semua Desa';
+
+    const updates = {
+      alamat: desaString,
+    };
+
+    const { data, error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', kurirId)
+      .select('id, nama, no_hp, nomor_dana, status_approval, alamat')
+      .single();
+
+    if (error) throw error;
+    return data;
   },
 
   /**
