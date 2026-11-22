@@ -13,23 +13,14 @@ import SkeletonLoader from '../components/SkeletonLoader';
 import Sidebar from '../components/Sidebar';
 import ConfirmationSheet from '../components/ConfirmationSheet';
 import { authService } from '../services/authService';
+import { supabase } from '../lib/supabaseClient';
 
 export default function CreateOrder() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, isProfileComplete } = useAuth();
+  const { profile } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logoutSheetOpen, setLogoutSheetOpen] = useState(false);
-
-  // Guard: Jika data profil belum lengkap, arahkan kembali ke dashboard customer dengan modal panduan
-  useEffect(() => {
-    if (profile && profile.role === 'customer' && !isProfileComplete) {
-      navigate('/dashboard-customer', {
-        replace: true,
-        state: { openIncompleteNotice: true, service: jenisBarang },
-      });
-    }
-  }, [profile, isProfileComplete, navigate, jenisBarang]);
 
   // State Form
   const [jenisBarang, setJenisBarang] = useState(
@@ -40,6 +31,7 @@ export default function CreateOrder() {
   const [deskripsiBarang, setDeskripsiBarang] = useState('');
   const [selectedDesaId, setSelectedDesaId] = useState('');
   const [alamatDetail, setAlamatDetail] = useState(profile?.alamat || '');
+  const [noHp, setNoHp] = useState(profile?.no_hp || '');
   const [metodePembayaran, setMetodePembayaran] = useState('COD'); // 'COD' | 'transfer'
   const [copiedText, setCopiedText] = useState('');
 
@@ -80,12 +72,15 @@ export default function CreateOrder() {
     }
   }, [desaList, profile?.alamat, selectedDesaId]);
 
-  // Update alamatDetail jika profile baru termuat
+  // Update alamatDetail & noHp jika profile baru termuat
   useEffect(() => {
     if (profile?.alamat && !alamatDetail) {
       setAlamatDetail(profile.alamat);
     }
-  }, [profile?.alamat, alamatDetail]);
+    if (profile?.no_hp && !noHp) {
+      setNoHp(profile.no_hp);
+    }
+  }, [profile?.alamat, profile?.no_hp, alamatDetail, noHp]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -93,6 +88,20 @@ export default function CreateOrder() {
     if (!selectedDesaId) {
       setSheetType('error');
       setSheetMessage('Silakan pilih desa tujuan pengiriman.');
+      setSheetOpen(true);
+      return;
+    }
+
+    if (!noHp || noHp.trim().length < 10) {
+      setSheetType('error');
+      setSheetMessage('Harap masukkan nomor WhatsApp penerima (minimal 10 digit) agar kurir dapat menghubungi Anda.');
+      setSheetOpen(true);
+      return;
+    }
+
+    if (!alamatDetail || alamatDetail.trim().length < 5) {
+      setSheetType('error');
+      setSheetMessage('Harap lengkapi detail alamat tujuan (Dusun, RT, RW atau patokan rumah).');
       setSheetOpen(true);
       return;
     }
@@ -113,9 +122,25 @@ export default function CreateOrder() {
       const prefixJumlah = `[${jumlahBarang} ${jenisBarang === 'paket_ekspedisi' ? 'Paket' : 'Barang'}]`;
       const deskripsiFinal = `${prefixJumlah} ${deskripsiBarang.trim() || (jenisBarang === 'paket_ekspedisi' ? 'Paket Ekspedisi' : 'Titip Barang')}`;
 
+      // Otomatis lengkapi profil customer di database jika no_hp atau alamat sebelumnya kosong
+      if (profile?.id && (!profile.no_hp || !profile.alamat)) {
+        try {
+          await supabase
+            .from('users')
+            .update({
+              no_hp: noHp.trim(),
+              alamat: fullAddress,
+              jalur_id: chosenDesa.jalur_id || null,
+            })
+            .eq('id', profile.id);
+        } catch (profileErr) {
+          console.warn('Perhatian saat auto-update profil:', profileErr);
+        }
+      }
+
       await orderService.createOrderByCustomer({
         customerId: profile.id,
-        jalurId: null, // Admin di hub yang menentukan pembagian jalur antaran
+        jalurId: chosenDesa.jalur_id || null, // Hubungkan otomatis dengan jalur desa
         jenisBarang: jenisBarang === 'paket_ekspedisi' ? 'paket_ekspedisi' : 'titip_beli',
         nomorResi,
         deskripsiBarang: deskripsiFinal,
@@ -478,6 +503,18 @@ export default function CreateOrder() {
               placeholder="Contoh: Dusun Krajan RT 02 RW 01 (Dekat Masjid)"
               value={alamatDetail}
               onChange={(e) => setAlamatDetail(e.target.value)}
+              helperText="Tuliskan nama dusun, patokan rumah, atau nomor RT/RW"
+              required
+            />
+
+            {/* Nomor WhatsApp Penerima */}
+            <Input
+              label="Nomor WhatsApp Penerima Paket"
+              type="tel"
+              placeholder="Contoh: 081234567890"
+              value={noHp}
+              onChange={(e) => setNoHp(e.target.value)}
+              helperText="Kurir akan menghubungi nomor ini saat pengantaran ke rumah Anda"
               required
             />
 

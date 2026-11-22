@@ -30,7 +30,23 @@ export const orderService = {
     };
 
     const { data, error } = await supabase.from('orders').insert(newOrder).select().single();
-    if (error) throw error;
+    if (error) {
+      if (
+        error.message?.includes('violates foreign key constraint') ||
+        error.message?.includes('violates not-null constraint') ||
+        error.message?.includes('jalur_id')
+      ) {
+        throw new Error(
+          'Master data Jalur & Desa di database Supabase belum terisi. Harap jalankan skrip "db/seeds/quick_setup_auth.sql" di Supabase SQL Editor agar pesanan dapat disimpan.'
+        );
+      }
+      if (error.message?.includes('violates row-level security policy')) {
+        throw new Error(
+          'Izin akses pesanan database (RLS) belum dibuka. Harap jalankan skrip "db/seeds/quick_setup_auth.sql" di Supabase SQL Editor.'
+        );
+      }
+      throw error;
+    }
     return data;
   },
 

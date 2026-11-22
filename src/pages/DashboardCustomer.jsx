@@ -46,15 +46,8 @@ export default function DashboardCustomer() {
     }
   }, [location.state, isProfileComplete, navigate]);
 
-  // Handler Saat Customer Mau Membuat Pesanan
+  // Handler Saat Customer Mau Membuat Pesanan: langsung buka form order tanpa di-block
   const handleStartOrder = (serviceType = 'paket_ekspedisi') => {
-    if (!isProfileComplete) {
-      setIncompleteOrderPrompt({
-        open: true,
-        serviceType,
-      });
-      return;
-    }
     navigate('/buat-order', { state: { service: serviceType } });
   };
 
