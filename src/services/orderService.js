@@ -222,4 +222,55 @@ export const orderService = {
     }
     return data;
   },
+
+  /**
+   * Customer: Ajukan Retur Paket (Maksimal 2 hari setelah status terkirim)
+   * Ketentuan Bisnis:
+   * Meskipun barang diretur, ongkir kurir kita TETAP DIBAYAR kepada kurir
+   * atas jerih payah perjalanan mengantar ke pelosok desa.
+   */
+  async requestCustomerReturn(orderId, {
+    alasan,
+    kontakWa = '',
+    currentDeskripsi = '',
+    ongkir = 0,
+  }) {
+    const cleanAlasan = alasan ? alasan.trim() : '';
+    if (!cleanAlasan) {
+      throw new Error('Harap tuliskan alasan pengajuan retur barang.');
+    }
+
+    const timestamp = new Date().toISOString();
+    const returTag = `[RETUR_CUSTOMER: ${cleanAlasan}${kontakWa ? ` (WA: ${kontakWa.trim()})` : ''} | Diajukan: ${timestamp} | Ketentuan: Ongkir kurir tetap dibayarkan]`;
+    const updatedDeskripsi = currentDeskripsi
+      ? `${currentDeskripsi}\n\n${returTag}`
+      : returTag;
+
+    const numericOngkir = parseFloat(ongkir) || 0;
+
+    const updates = {
+      status_pengiriman: 'retur',
+      // Ongkir kurir tetap dipertahankan dan dibayar penuh untuk kurir
+      ongkir_diterima: numericOngkir,
+      status_pembayaran: numericOngkir > 0 ? 'lunas' : 'belum_lunas',
+      deskripsi_barang: updatedDeskripsi,
+    };
+
+    const { data, error } = await supabase
+      .from('orders')
+      .update(updates)
+      .eq('id', orderId)
+      .select('*, customer:customer_id (nama, no_hp, alamat), jalur:jalur_id (nama_jalur)')
+      .single();
+
+    if (error) {
+      if (error.message?.includes('delivery_status')) {
+        throw new Error(
+          "Tipe enum database belum diperbarui. Harap jalankan file 'db/seeds/quick_setup_auth.sql' di Supabase SQL Editor untuk mengaktifkan status retur."
+        );
+      }
+      throw error;
+    }
+    return data;
+  },
 };

@@ -107,3 +107,76 @@ export function getConfirmationStatusMeta(status) {
       return { label: status, variant: 'neutral' };
   }
 }
+
+/**
+ * Ekstraksi informasi retur dari deskripsi barang jika ada
+ */
+export function parseReturInfo(deskripsi) {
+  if (!deskripsi) return null;
+  // Format retur customer: [RETUR_CUSTOMER: alasan | Diajukan: ISOString | Ketentuan: ...]
+  const customerMatch = deskripsi.match(/\[RETUR_CUSTOMER:\s*([^|\]]+)(?:\|\s*Diajukan:\s*([^|\]]+))?(?:\|\s*([^\]]+))?\]/i);
+  if (customerMatch) {
+    return {
+      isRetur: true,
+      tipe: 'customer',
+      alasan: customerMatch[1]?.trim() || 'Paket diajukan retur oleh customer',
+      diajukanPada: customerMatch[2]?.trim() || null,
+      ketentuan: customerMatch[3]?.trim() || 'Ongkir kurir tetap dibayarkan',
+    };
+  }
+
+  // Format retur kurir: [RETUR - alasan: catatan]
+  const kurirMatch = deskripsi.match(/\[RETUR\s*-\s*([^\]]+)\]/i);
+  if (kurirMatch) {
+    return {
+      isRetur: true,
+      tipe: 'kurir',
+      alasan: kurirMatch[1]?.trim() || 'Paket diretur saat pengantaran kurir',
+      diajukanPada: null,
+      ketentuan: 'Ongkir kurir tetap dibayarkan',
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Cek kelayakan pesanan untuk diajukan retur (Maksimal 2 hari / 48 jam sejak paket terkirim)
+ */
+export function checkReturnEligibility(order) {
+  if (!order) return { eligible: false, reason: 'Data pesanan tidak ditemukan' };
+
+  if (order.status_pengiriman === 'retur') {
+    return { eligible: false, reason: 'Pesanan ini sudah berstatus retur' };
+  }
+
+  if (order.status_pengiriman !== 'terkirim') {
+    return {
+      eligible: false,
+      reason: 'Retur hanya dapat diajukan setelah paket berhasil diantar (status Terkirim)',
+    };
+  }
+
+  // Waktu referensi: updated_at saat paket diantar, atau created_at
+  const referenceTime = new Date(order.updated_at || order.created_at).getTime();
+  const now = Date.now();
+  const diffHours = (now - referenceTime) / (1000 * 60 * 60);
+  const maxHours = 48; // Batas 2 hari
+
+  if (diffHours > maxHours) {
+    return {
+      eligible: false,
+      reason: 'Batas waktu retur telah berakhir (Maksimal 2 hari setelah paket diterima)',
+      remainingHours: 0,
+      deadlineDate: new Date(referenceTime + maxHours * 60 * 60 * 1000),
+    };
+  }
+
+  const remainingHours = Math.max(0, Math.ceil(maxHours - diffHours));
+  return {
+    eligible: true,
+    remainingHours,
+    deadlineDate: new Date(referenceTime + maxHours * 60 * 60 * 1000),
+    reason: `Dapat diajukan retur (Sisa waktu: ${remainingHours} jam lagi)`,
+  };
+}
