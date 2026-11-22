@@ -166,30 +166,34 @@ export default function DashboardKurir() {
     loadKurirOrders();
   }, [profile?.id, profile?.alamat]);
 
-  // Helper memutar suara "Tiit" scanner kasir/kurir & getar haptic HP saat resi sukses di-scan
+  // Helper memutar suara "Tiit" scanner kasir/kurir lantang & getar haptic HP saat resi sukses di-scan
   const playScanBeep = () => {
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
         const ctx = new AudioCtx();
+        if (ctx.state === 'suspended') {
+          ctx.resume();
+        }
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
 
-        // Nada Tiit frekuensi 1900Hz khas barcode scanner ekspedisi
+        // Nada Tiit frekuensi 2100Hz yang sangat jernih dan nyaring (khas scanner barcode supermarket & kurir J&T/Shopee)
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(1900, ctx.currentTime);
+        osc.frequency.setValueAtTime(2100, ctx.currentTime);
 
-        gain.gain.setValueAtTime(0.22, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+        // Volume maksimal dan jelas: 0.85
+        gain.gain.setValueAtTime(0.85, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.18);
 
         osc.connect(gain);
         gain.connect(ctx.destination);
 
         osc.start();
-        osc.stop(ctx.currentTime + 0.15);
+        osc.stop(ctx.currentTime + 0.18);
       }
       if (navigator.vibrate) {
-        navigator.vibrate(120);
+        navigator.vibrate([150, 50, 150]);
       }
     } catch (e) {
       console.warn('Audio beep error:', e);
@@ -674,56 +678,6 @@ export default function DashboardKurir() {
           </div>
         </div>
       </Card>
-
-      {/* Quick Action Bar: Scan Resi Paket Pelosok & Toggle Map */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '10px', marginBottom: '14px' }}>
-        <button
-          onClick={() => {
-            setScannerOpen(true);
-            setTimeout(() => startKurirCamera(), 300);
-          }}
-          style={{
-            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            padding: '12px 14px',
-            fontSize: '13.5px',
-            fontWeight: '800',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            boxShadow: '0 4px 10px rgba(16, 185, 129, 0.35)',
-          }}
-        >
-          <span style={{ fontSize: '18px' }}>📷</span>
-          <span>Scan Resi Paket</span>
-        </button>
-
-        <button
-          onClick={() => setShowMap(!showMap)}
-          style={{
-            background: 'var(--color-bg-card)',
-            color: 'var(--color-text-main)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-md)',
-            padding: '12px 14px',
-            fontSize: '13px',
-            fontWeight: '700',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '6px',
-            boxShadow: 'var(--skeuo-button-raised)',
-          }}
-        >
-          <span>🗺️</span>
-          <span>{showMap ? 'Tutup Peta' : 'Buka Peta'}</span>
-        </button>
-      </div>
 
       {/* Ringkasan Performa & Kas Harian (Daily Metrics Card) */}
       <Card
