@@ -72,11 +72,18 @@ export default function DeliveryMap({
         center: NARINGGUL_CENTER,
         zoom: 14,
         zoomControl: true,
+        attributionControl: false, // Hilangkan watermark dari pojok kanan bawah
       });
+
+      // Pindahkan watermark / atribusi ke pojok kiri bawah (bottomleft) agar tombol fokus 🎯 di kanan bawah bebas hambatan
+      L.control.attribution({
+        position: 'bottomleft',
+        prefix: '<a href="https://leafletjs.com" target="_blank" rel="noopener noreferrer" style="color:#94a3b8; font-size:10px;">Leaflet</a>',
+      }).addTo(map);
 
       // Peta Satelit Google Hybrid (Citra Satelit Jernih + Nama Jalan & Kampung Pelosok)
       const satLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-        attribution: '&copy; Google Satellite Imagery',
+        attribution: '&copy; Google Satellite',
         maxZoom: 20,
         subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
       }).addTo(map);
@@ -391,6 +398,21 @@ export default function DeliveryMap({
         background: '#090d16',
       }}
     >
+      <style>{`
+        .leaflet-bottom.leaflet-left .leaflet-control-attribution {
+          background: rgba(15, 23, 42, 0.75) !important;
+          color: #94a3b8 !important;
+          font-size: 9.5px !important;
+          padding: 2px 6px !important;
+          border-radius: 4px !important;
+          margin: 6px !important;
+        }
+        .leaflet-bottom.leaflet-left .leaflet-control-attribution a {
+          color: #38bdf8 !important;
+          text-decoration: none !important;
+        }
+      `}</style>
+
       {/* Kontainer Peta Satelit Murni */}
       <div ref={mapContainerRef} style={{ width: '100%', height, background: '#090d16' }} />
 
