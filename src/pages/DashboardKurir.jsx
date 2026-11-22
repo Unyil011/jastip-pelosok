@@ -166,6 +166,36 @@ export default function DashboardKurir() {
     loadKurirOrders();
   }, [profile?.id, profile?.alamat]);
 
+  // Helper memutar suara "Tiit" scanner kasir/kurir & getar haptic HP saat resi sukses di-scan
+  const playScanBeep = () => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        // Nada Tiit frekuensi 1900Hz khas barcode scanner ekspedisi
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1900, ctx.currentTime);
+
+        gain.gain.setValueAtTime(0.22, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
+      }
+      if (navigator.vibrate) {
+        navigator.vibrate(120);
+      }
+    } catch (e) {
+      console.warn('Audio beep error:', e);
+    }
+  };
+
   // Pantau URL query params (misal klik tab Scan Resi di BottomNav)
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -176,6 +206,18 @@ export default function DashboardKurir() {
       setStatusFilter(searchParams.get('status'));
     }
   }, [location.search]);
+
+  // Otomatis langsung buka kamera saat scanner modal terbuka
+  useEffect(() => {
+    if (scannerOpen) {
+      const timer = setTimeout(() => {
+        startKurirCamera();
+      }, 350);
+      return () => clearTimeout(timer);
+    } else {
+      stopKurirCamera();
+    }
+  }, [scannerOpen]);
 
   // Real-time Event Listener saat ada order baru dibuat oleh customer
   useEffect(() => {
@@ -216,6 +258,7 @@ export default function DashboardKurir() {
           qrbox: { width: 250, height: 180 },
         },
         async (decodedText) => {
+          playScanBeep();
           stopKurirCamera();
           setScannedResiInput(decodedText);
           handleProcessKurirScan(decodedText);
@@ -310,6 +353,7 @@ export default function DashboardKurir() {
         return;
       }
 
+      playScanBeep();
       const { isMatched, desaTujuan } = checkKurirVillageMatch(order, profile);
       setScanTargetDesa(desaTujuan);
       setScanResultOrder(order);
@@ -1493,86 +1537,113 @@ export default function DashboardKurir() {
         onClose={handleCloseScanner}
         title="📷 Scan Barcode / Resi Paket"
       >
-        <div style={{ padding: '4px 0 16px 0', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          {/* Petunjuk Penggunaan */}
-          <div
-            style={{
-              background: 'rgba(31, 148, 196, 0.08)',
-              border: '1px solid rgba(31, 148, 196, 0.25)',
-              borderRadius: 'var(--radius-sm)',
-              padding: '10px 12px',
-              fontSize: '12px',
-              color: 'var(--color-text-main)',
-              lineHeight: '1.45',
-            }}
-          >
-            Arahkan kamera ke barcode resi paket (Shopee, J&T, SiCepat, dll) atau ketik nomor resi di bawah. Sistem akan mencocokkan pesanan customer dan mengecek wilayah tugas Anda.
-          </div>
-
-          {/* Scanner Kamera Stream */}
-          <div>
+        <div style={{ padding: '0 0 16px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {/* Scanner Kamera Stream (Otomatis Aktif Saat Modal Terbuka) */}
+          <div style={{ position: 'relative' }}>
             <div
               id="kurir-camera-stream"
               style={{
                 width: '100%',
                 minHeight: isScanningCamera ? '220px' : '0px',
-                background: '#0f172a',
+                background: '#090d16',
                 borderRadius: 'var(--radius-md)',
                 overflow: 'hidden',
                 display: isScanningCamera ? 'block' : 'none',
+                boxShadow: isScanningCamera ? '0 4px 14px rgba(0,0,0,0.3)' : 'none',
                 marginBottom: '10px',
               }}
             />
 
-            <div style={{ display: 'flex', gap: '8px' }}>
+            {/* Kontrol Toggle Kamera */}
+            <div>
               {!isScanningCamera ? (
                 <Button
                   onClick={startKurirCamera}
                   style={{
-                    flex: 1,
+                    width: '100%',
                     background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                     color: '#ffffff',
                     border: 'none',
+                    padding: '12px',
+                    fontWeight: '800',
                   }}
                 >
-                  📸 Buka Kamera HP
+                  📸 Buka / Aktifkan Kamera HP
                 </Button>
               ) : (
-                <Button
-                  variant="outline"
+                <button
+                  type="button"
                   onClick={stopKurirCamera}
-                  style={{ flex: 1, color: '#ef4444', borderColor: '#ef4444' }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid #ef4444',
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    color: '#ef4444',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                  }}
                 >
-                  ⏹️ Matikan Kamera
-                </Button>
+                  <span>⏹️</span>
+                  <span>Matikan Kamera (Gunakan Input Manual)</span>
+                </button>
               )}
             </div>
           </div>
 
-          {/* Input Manual Nomor Resi (Alternatif jika barcode rusak) */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleProcessKurirScan(scannedResiInput);
-            }}
-            style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}
-          >
-            <div style={{ flex: 1 }}>
-              <Input
-                label="Atau Ketik Nomor Resi Manual"
+          {/* Input Manual Nomor Resi (Alternatif Rapi & Proporsional) */}
+          <div style={{ marginTop: '4px' }}>
+            <label
+              style={{
+                display: 'block',
+                fontSize: '12px',
+                fontWeight: '700',
+                color: 'var(--color-text-main)',
+                marginBottom: '6px',
+              }}
+            >
+              Atau Masukkan Nomor Resi Manual:
+            </label>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleProcessKurirScan(scannedResiInput);
+              }}
+              style={{ display: 'flex', gap: '8px', width: '100%' }}
+            >
+              <input
+                type="text"
                 placeholder="Contoh: SPXID..., JP123..."
                 value={scannedResiInput}
                 onChange={(e) => setScannedResiInput(e.target.value)}
+                style={{
+                  flex: 1,
+                  height: '42px',
+                  padding: '0 12px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-bg-input)',
+                  color: 'var(--color-text-main)',
+                  fontSize: '13px',
+                  outline: 'none',
+                  minWidth: 0,
+                }}
               />
-            </div>
-            <Button
-              type="submit"
-              loading={scanStatus === 'loading'}
-              style={{ height: '42px', padding: '0 16px' }}
-            >
-              Cari Data
-            </Button>
-          </form>
+              <Button
+                type="submit"
+                loading={scanStatus === 'loading'}
+                style={{ height: '42px', padding: '0 18px', whiteSpace: 'nowrap' }}
+              >
+                Cari Resi
+              </Button>
+            </form>
+          </div>
 
           {/* Indikator Loading */}
           {scanStatus === 'loading' && (
