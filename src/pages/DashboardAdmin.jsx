@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
+import { authService } from '../services/authService';
 import { orderService } from '../services/orderService';
 import { adminService } from '../services/adminService';
 import { villageService } from '../services/villageService';
@@ -16,8 +17,25 @@ import SkeletonLoader from '../components/SkeletonLoader';
 import { formatDateIndonesia } from '../utils/formatters';
 
 export default function DashboardAdmin() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const currentTab = searchParams.get('tab') || 'pending'; // 'pending' | 'scan' | 'kurir'
+
+  // Logout State
+  const [logoutSheetOpen, setLogoutSheetOpen] = useState(false);
+  const [logoutLoading, setLogoutLoading] = useState(false);
+
+  const handleLogout = async () => {
+    setLogoutLoading(true);
+    try {
+      await authService.logout();
+      navigate('/login');
+    } catch (err) {
+      console.error('Gagal keluar:', err);
+    } finally {
+      setLogoutLoading(false);
+    }
+  };
 
   // Tab 1: Orders Pending
   const [pendingOrders, setPendingOrders] = useState([]);
@@ -325,14 +343,39 @@ export default function DashboardAdmin() {
 
   return (
     <div className="app-container">
-      {/* Admin Title */}
-      <div style={{ marginBottom: '14px' }}>
-        <h1 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-primary-dark)' }}>
-          Panel Administrator ⚙️
-        </h1>
-        <p style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
-          Kelola konfirmasi order, scan paket fisik & data mitra kurir
-        </p>
+      {/* Admin Title & Logout Button */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+        <div>
+          <h1 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-primary-dark)', margin: 0 }}>
+            Panel Administrator ⚙️
+          </h1>
+          <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px', marginBottom: 0 }}>
+            Kelola konfirmasi order, scan paket fisik & data mitra kurir
+          </p>
+        </div>
+
+        <button
+          onClick={() => setLogoutSheetOpen(true)}
+          style={{
+            background: 'var(--color-bg-card)',
+            border: '1.5px solid #fecaca',
+            borderRadius: 'var(--radius-md)',
+            color: '#dc2626',
+            padding: '7px 12px',
+            fontSize: '12px',
+            fontWeight: '700',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: 'var(--skeuo-button-raised)',
+            whiteSpace: 'nowrap',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <span>🚪</span>
+          <span>Keluar</span>
+        </button>
       </div>
 
       {/* Tabs Switcher */}
@@ -819,6 +862,18 @@ export default function DashboardAdmin() {
           </div>
         </div>
       </BottomSheet>
+
+      {/* Confirmation Sheet Logout */}
+      <ConfirmationSheet
+        isOpen={logoutSheetOpen}
+        onClose={() => setLogoutSheetOpen(false)}
+        onConfirm={handleLogout}
+        title="Keluar dari Panel Admin"
+        message="Apakah Anda yakin ingin keluar dari sesi akun Administrator ini?"
+        confirmText="Ya, Keluar Akun"
+        confirmVariant="danger"
+        loading={logoutLoading}
+      />
 
       {/* Bottom Nav Admin */}
       <BottomNav role="admin" />

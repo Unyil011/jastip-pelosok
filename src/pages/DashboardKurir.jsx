@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { authService } from '../services/authService';
 import { orderService } from '../services/orderService';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
@@ -19,10 +21,27 @@ import {
 } from '../utils/formatters';
 
 export default function DashboardKurir() {
+  const navigate = useNavigate();
   const { profile } = useAuth();
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Logout State
+  const [logoutSheetOpen, setLogoutSheetOpen] = useState(false);
+  const [logoutLoading, setLogoutLoading] = useState(false);
+
+  const handleLogout = async () => {
+    setLogoutLoading(true);
+    try {
+      await authService.logout();
+      navigate('/login');
+    } catch (err) {
+      console.error('Gagal keluar:', err);
+    } finally {
+      setLogoutLoading(false);
+    }
+  };
 
   // Filter & Pencarian
   const [dateFilter, setDateFilter] = useState('hari_ini'); // 'hari_ini' | 'kemarin' | 'semua'
@@ -334,21 +353,38 @@ export default function DashboardKurir() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
-            <button
-              onClick={loadKurirOrders}
-              style={{
-                background: 'rgba(255, 255, 255, 0.2)',
-                border: '1px solid rgba(255, 255, 255, 0.4)',
-                borderRadius: 'var(--radius-md)',
-                color: '#ffffff',
-                padding: '5px 10px',
-                fontSize: '11.5px',
-                fontWeight: '600',
-                cursor: 'pointer',
-              }}
-            >
-              🔄 Refresh
-            </button>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button
+                onClick={loadKurirOrders}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  border: '1px solid rgba(255, 255, 255, 0.4)',
+                  borderRadius: 'var(--radius-md)',
+                  color: '#ffffff',
+                  padding: '5px 10px',
+                  fontSize: '11.5px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
+                🔄 Refresh
+              </button>
+              <button
+                onClick={() => setLogoutSheetOpen(true)}
+                style={{
+                  background: 'rgba(239, 68, 68, 0.4)',
+                  border: '1px solid rgba(255, 255, 255, 0.5)',
+                  borderRadius: 'var(--radius-md)',
+                  color: '#ffffff',
+                  padding: '5px 8px',
+                  fontSize: '11.5px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                }}
+              >
+                🚪 Keluar
+              </button>
+            </div>
             <button
               onClick={toggleGpsTracking}
               style={{
@@ -1177,6 +1213,18 @@ export default function DashboardKurir() {
           </div>
         </div>
       </BottomSheet>
+
+      {/* Confirmation Sheet Logout */}
+      <ConfirmationSheet
+        isOpen={logoutSheetOpen}
+        onClose={() => setLogoutSheetOpen(false)}
+        onConfirm={handleLogout}
+        title="Keluar dari Akun Kurir"
+        message="Apakah Anda yakin ingin keluar dari sesi aplikasi Kurir?"
+        confirmText="Ya, Keluar Akun"
+        confirmVariant="danger"
+        loading={logoutLoading}
+      />
 
       {/* Bottom Nav */}
       <BottomNav role="kurir" />
