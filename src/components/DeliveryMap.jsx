@@ -51,19 +51,15 @@ export default function DeliveryMap({
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const tileLayerRef = useRef(null);
-  const hybridLayerRef = useRef(null);
   const markersRef = useRef({});
   const courierMarkerRef = useRef(null);
   const routePolylineRef = useRef(null);
-
-  // State Mode Tampilan Peta: 'satelit' (Default Sesuai Permintaan) | 'jalan'
-  const [mapMode, setMapMode] = useState('satelit');
   const [mapReady, setMapReady] = useState(false);
 
   // Pusat Default: Hub Kecamatan Naringgul, Cianjur Selatan
   const NARINGGUL_CENTER = [-7.4764, 107.4851];
 
-  // 1. Inisialisasi Peta Leaflet & Tile Layer Satelit
+  // 1. Inisialisasi Peta Leaflet & Tile Layer Satelit Murni
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
@@ -74,9 +70,9 @@ export default function DeliveryMap({
         zoomControl: true,
       });
 
-      // Default Layer: Satelit Hybrid Google (Citra Satelit Asli + Garis Jalanan & Toponimi Kampung Pelosok)
+      // Peta Satelit Google Hybrid (Citra Satelit Jernih + Nama Jalan & Kampung Pelosok)
       const satLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-        attribution: '&copy; Google Satellite Imagery & Roads',
+        attribution: '&copy; Google Satellite Imagery',
         maxZoom: 20,
         subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
       }).addTo(map);
@@ -94,35 +90,7 @@ export default function DeliveryMap({
     };
   }, []);
 
-  // 2. Ganti Mode Layer Peta (Satelit Hybrid vs Peta Jalan Standard)
-  useEffect(() => {
-    if (!mapInstanceRef.current) return;
-    const map = mapInstanceRef.current;
-
-    if (tileLayerRef.current) {
-      map.removeLayer(tileLayerRef.current);
-    }
-    if (hybridLayerRef.current) {
-      map.removeLayer(hybridLayerRef.current);
-      hybridLayerRef.current = null;
-    }
-
-    if (mapMode === 'satelit') {
-      // Satelit Google Hybrid (Citra Satelit Jernih + Nama Jalan Pelosok)
-      tileLayerRef.current = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-        attribution: '&copy; Google Satellite Imagery',
-        maxZoom: 20,
-      }).addTo(map);
-    } else {
-      // Peta Jalan Standard OpenStreetMap
-      tileLayerRef.current = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
-        maxZoom: 19,
-      }).addTo(map);
-    }
-  }, [mapMode]);
-
-  // 3. Fix Layout & Size Invalidation agar peta tidak abu-abu / blank
+  // 2. Fix Layout & Size Invalidation agar peta tidak blank
   useEffect(() => {
     if (!mapInstanceRef.current) return;
     const t1 = setTimeout(() => mapInstanceRef.current?.invalidateSize(), 150);
@@ -133,9 +101,9 @@ export default function DeliveryMap({
       clearTimeout(t2);
       clearTimeout(t3);
     };
-  }, [mapReady, orders, mapMode]);
+  }, [mapReady, orders]);
 
-  // 4. Render Titik Antaran, Jalur Rute Pengantaran (Polyline), dan Posisi Kurir
+  // 3. Render Titik Rumah Pelanggan (Icon Rumah 🏠), Jalur Rute Polyline, dan Posisi Kurir
   useEffect(() => {
     if (!mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
@@ -172,17 +140,17 @@ export default function DeliveryMap({
       const isRetur = order.status_pengiriman === 'retur';
       const isSelected = selectedOrder?.id === order.id;
 
-      let bgColor = '#f97316'; // Siap antar
-      let symbol = pinNumber;
+      let bgColor = '#f97316'; // Siap antar (Oranye)
+      let symbol = '🏠'; // Customer selalu icon RUMAH 🏠
 
       if (isTerkirim) {
-        bgColor = '#10b981'; // Selesai
+        bgColor = '#10b981'; // Selesai (Hijau)
         symbol = '✓';
       } else if (isOtw) {
-        bgColor = '#2563eb'; // Diantar
-        symbol = '🛵';
+        bgColor = '#2563eb'; // Diantar ke rumah ini (Biru)
+        symbol = '🏠';
       } else if (isRetur) {
-        bgColor = '#ef4444'; // Retur
+        bgColor = '#ef4444'; // Retur (Merah)
         symbol = '↩';
       }
 
@@ -212,8 +180,9 @@ export default function DeliveryMap({
             transform: rotate(45deg);
             color: #ffffff;
             font-weight: 800;
-            font-size: ${isTerkirim || isOtw ? '14px' : '12px'};
+            font-size: ${symbol === '🏠' ? '16px' : '14px'};
             font-family: sans-serif;
+            line-height: 1;
           ">
             ${symbol}
           </span>
@@ -230,11 +199,11 @@ export default function DeliveryMap({
 
       const marker = L.marker(coords, { icon }).addTo(map);
 
-      // Popup Detail Titik Order
+      // Popup Detail Titik Rumah Pelanggan
       const popupHtml = `
         <div style="min-width: 210px; font-family: sans-serif; font-size: 12px; color: #1e293b;">
           <div style="font-weight: 800; font-size: 14px; color: #0f172a; margin-bottom: 2px;">
-            ${pinNumber}. ${order.customer?.nama || 'Pelanggan Pelosok'}
+            🏠 Rumah: ${order.customer?.nama || 'Pelanggan Pelosok'}
           </div>
           <div style="color: #64748b; font-size: 11px; margin-bottom: 6px; line-height: 1.35;">
             📍 ${order.alamat_tujuan || '-'}
@@ -248,12 +217,12 @@ export default function DeliveryMap({
           <div style="display: flex; gap: 6px;">
             <a href="https://www.google.com/maps/dir/?api=1&destination=${coords[0]},${coords[1]}" target="_blank" rel="noopener noreferrer" 
                style="flex: 1; text-align: center; background: #0284c7; color: #ffffff; padding: 7px; border-radius: 6px; text-decoration: none; font-weight: 800; font-size: 11px;">
-              🧭 Navigasi Rute
+              🧭 Navigasi
             </a>
             ${order.customer?.no_hp ? `
               <a href="https://wa.me/62${order.customer.no_hp.replace(/^0+/, '')}" target="_blank" rel="noopener noreferrer"
                  style="flex: 1; text-align: center; background: #16a34a; color: #ffffff; padding: 7px; border-radius: 6px; text-decoration: none; font-weight: 800; font-size: 11px;">
-                💬 Hubungi WA
+                💬 Chat WA
               </a>
             ` : ''}
           </div>
@@ -266,9 +235,8 @@ export default function DeliveryMap({
       pinNumber++;
     });
 
-    // 5. Gambar Garis Jalur Rute Pengantaran (Delivery Route Polyline)
+    // 4. Gambar Garis Jalur Rute Pengantaran (Delivery Route Polyline)
     if (routePoints.length >= 2) {
-      // Garis Jalur Bersinar (Cyan / Neon Blue Navigation Path)
       const polyline = L.polyline(routePoints, {
         color: '#38bdf8',
         weight: 4.5,
@@ -281,13 +249,12 @@ export default function DeliveryMap({
       routePolylineRef.current = polyline;
     }
 
-    // Auto-fit zoom bounds agar seluruh rute dan rumah termuat di layar
     if (bounds.length > 0) {
       map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
     }
   }, [orders, selectedOrder, courierLocation]);
 
-  // 6. Render Pin Posisi Kurir Bergerak (Live Courier Pulse Marker)
+  // 5. Render Pin Posisi Kurir Bergerak (Live Motor Kurir Pulse Marker)
   useEffect(() => {
     if (!mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
@@ -302,13 +269,14 @@ export default function DeliveryMap({
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 42px;
-        height: 42px;
+        width: 44px;
+        height: 44px;
         border-radius: 50%;
         background: #0284c7;
-        box-shadow: 0 0 0 6px rgba(56, 189, 248, 0.45), 0 4px 12px rgba(0,0,0,0.5);
+        box-shadow: 0 0 0 7px rgba(56, 189, 248, 0.45), 0 4px 14px rgba(0,0,0,0.6);
         border: 2.5px solid #ffffff;
         font-size: 22px;
+        transition: transform 0.3s ease;
       ">
         🛵
       </div>
@@ -317,8 +285,8 @@ export default function DeliveryMap({
     const courierIcon = L.divIcon({
       html: courierHtml,
       className: 'courier-satelit-pin',
-      iconSize: [42, 42],
-      iconAnchor: [21, 21],
+      iconSize: [44, 44],
+      iconAnchor: [22, 22],
     });
 
     if (courierMarkerRef.current) {
@@ -328,7 +296,7 @@ export default function DeliveryMap({
         icon: courierIcon,
         zIndexOffset: 1500,
       }).addTo(map);
-      courierMarkerRef.current.bindTooltip('🛵 Posisi Kurir / Hub Naringgul', { permanent: false, direction: 'top' });
+      courierMarkerRef.current.bindTooltip('🛵 Posisi Kurir ( Bergerak Real-time )', { permanent: false, direction: 'top' });
     }
   }, [courierLocation]);
 
@@ -345,6 +313,19 @@ export default function DeliveryMap({
     }
   };
 
+  // Tombol Pusatkan Tepat ke Posisi Kurir (Seperti Google Maps)
+  const handleCenterToCourier = () => {
+    if (!mapInstanceRef.current) return;
+    const currentCoords = courierLocation && courierLocation[0] && courierLocation[1]
+      ? [parseFloat(courierLocation[0]), parseFloat(courierLocation[1])]
+      : NARINGGUL_CENTER;
+
+    mapInstanceRef.current.flyTo(currentCoords, 17, {
+      animate: true,
+      duration: 1.2,
+    });
+  };
+
   return (
     <div
       style={{
@@ -357,10 +338,10 @@ export default function DeliveryMap({
         background: '#090d16',
       }}
     >
-      {/* Kontainer Peta Satelit */}
+      {/* Kontainer Peta Satelit Murni */}
       <div ref={mapContainerRef} style={{ width: '100%', height, background: '#090d16' }} />
 
-      {/* Floating Top Controls (Switch Mode Satelit vs Jalan & Fit All) */}
+      {/* Floating Top Controls (Status Titik & Tombol Rute) */}
       <div
         style={{
           position: 'absolute',
@@ -381,74 +362,60 @@ export default function DeliveryMap({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span>🛣️</span>
-          <b>{orders.length} Titik Antaran Pelosok</b>
+          <span>🛰️</span>
+          <b>Peta Satelit Pelosok ({orders.length} Rumah)</b>
         </div>
 
-        {/* Switch Layer: Satelit vs Jalan */}
-        <div style={{ display: 'flex', gap: '6px' }}>
-          <div
-            style={{
-              display: 'flex',
-              background: 'rgba(255, 255, 255, 0.12)',
-              borderRadius: '6px',
-              padding: '2px',
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setMapMode('satelit')}
-              style={{
-                background: mapMode === 'satelit' ? '#0284c7' : 'transparent',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '4px',
-                padding: '3px 8px',
-                fontSize: '10.5px',
-                fontWeight: '700',
-                cursor: 'pointer',
-              }}
-            >
-              🛰️ Satelit
-            </button>
-            <button
-              type="button"
-              onClick={() => setMapMode('jalan')}
-              style={{
-                background: mapMode === 'jalan' ? '#0284c7' : 'transparent',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '4px',
-                padding: '3px 8px',
-                fontSize: '10.5px',
-                fontWeight: '700',
-                cursor: 'pointer',
-              }}
-            >
-              🗺️ Jalan
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleFitAll}
-            style={{
-              background: 'var(--color-primary)',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '6px',
-              padding: '3px 8px',
-              fontSize: '11px',
-              fontWeight: '700',
-              cursor: 'pointer',
-            }}
-          >
-            🔍 Rute
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleFitAll}
+          style={{
+            background: 'var(--color-primary)',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '6px',
+            padding: '4px 10px',
+            fontSize: '11px',
+            fontWeight: '800',
+            cursor: 'pointer',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+          }}
+        >
+          🔍 Lihat Semua Rute
+        </button>
       </div>
 
-      {/* Keterangan Warna Pin di Bawah Peta Satelit */}
+      {/* Tombol Tengahkan ke Posisi Saya (Floating Crosshair Icon ala Google Maps) */}
+      <button
+        type="button"
+        onClick={handleCenterToCourier}
+        title="Tengahkan ke Posisi Motor Saya"
+        style={{
+          position: 'absolute',
+          bottom: '50px',
+          right: '12px',
+          zIndex: 999,
+          width: '42px',
+          height: '42px',
+          borderRadius: '50%',
+          background: '#ffffff',
+          color: '#0284c7',
+          border: '2px solid rgba(2, 132, 199, 0.3)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '20px',
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
+        }}
+        onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.92)')}
+        onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+      >
+        🎯
+      </button>
+
+      {/* Keterangan Warna Pin di Bawah Peta Satelit (Icon Rumah 🏠 & Motor 🛵) */}
       <div
         style={{
           padding: '8px 12px',
@@ -463,21 +430,24 @@ export default function DeliveryMap({
           justifyContent: 'space-between',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <span style={{ display: 'inline-block', width: '9px', height: '9px', borderRadius: '50%', background: '#f97316' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <span style={{ fontSize: '13px' }}>🏠</span>
+          <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#f97316' }} />
           <span>Siap Antar</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <span style={{ display: 'inline-block', width: '9px', height: '9px', borderRadius: '50%', background: '#2563eb' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <span style={{ fontSize: '13px' }}>🏠</span>
+          <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#2563eb' }} />
           <span>Di Jalan</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <span style={{ display: 'inline-block', width: '9px', height: '9px', borderRadius: '50%', background: '#10b981' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <span style={{ fontSize: '13px' }}>🏠</span>
+          <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }} />
           <span>Terkirim</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <span style={{ display: 'inline-block', width: '9px', height: '9px', borderRadius: '50%', background: '#ef4444' }} />
-          <span>Retur</span>
+          <span style={{ fontSize: '13px' }}>🛵</span>
+          <span style={{ color: '#38bdf8', fontWeight: '700' }}>Posisi Saya</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           <span style={{ display: 'inline-block', width: '14px', height: '3px', background: '#38bdf8', borderRadius: '2px' }} />

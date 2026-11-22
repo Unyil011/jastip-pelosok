@@ -36,6 +36,8 @@ export default function DashboardKurir() {
   const [scanResultOrder, setScanResultOrder] = useState(null);
   const [scanStatus, setScanStatus] = useState(null); // null | 'matched' | 'not_assigned' | 'not_found' | 'loading'
   const [scanTargetDesa, setScanTargetDesa] = useState('');
+  const [scanHargaPaket, setScanHargaPaket] = useState('');
+  const [scanOngkirKurir, setScanOngkirKurir] = useState('10000');
   const kurirScannerRef = useRef(null);
 
   // Logout State
@@ -407,6 +409,10 @@ export default function DashboardKurir() {
       setScanTargetDesa(desaTujuan);
       setScanResultOrder(order);
 
+      // Inisialisasi harga paket & ongkir patokan (default Rp 10.000 atau sesuai patokan awal)
+      setScanHargaPaket('');
+      setScanOngkirKurir(order.ongkir_patokan && order.ongkir_patokan > 0 ? String(order.ongkir_patokan) : '10000');
+
       if (isMatched) {
         setScanStatus('matched');
       } else {
@@ -418,20 +424,35 @@ export default function DashboardKurir() {
     }
   };
 
-  // Kurir ambil & bawa paket dari hasil scan
+  // Kurir ambil & bawa paket dari hasil scan lengkap dengan pemberian harga paket & ongkir
   const handleKurirAmbilPaketDariScan = async (orderId) => {
     if (!orderId) return;
     setActionLoading(true);
     try {
+      const numericOngkir = parseFloat(scanOngkirKurir) || 0;
+      const numericHargaPaket = parseFloat(scanHargaPaket) || 0;
+
+      // Update deskripsi dengan tag rincian harga paket / COD dan ongkir jika dimasukkan
+      let updatedDesc = scanResultOrder?.deskripsi_barang || '';
+      if (numericHargaPaket > 0) {
+        updatedDesc += ` [COD Barang: Rp ${numericHargaPaket.toLocaleString('id-ID')}]`;
+      }
+      if (numericOngkir > 0 && !updatedDesc.includes('[Ongkir:')) {
+        updatedDesc += ` [Ongkir: Rp ${numericOngkir.toLocaleString('id-ID')}]`;
+      }
+
       await orderService.updateDeliveryStatus(orderId, 'dalam_perjalanan', {
         kurir_id: profile.id,
         status_konfirmasi: 'dikonfirmasi',
+        ongkir_patokan: numericOngkir,
+        deskripsi_barang: updatedDesc,
       });
+
       await loadKurirOrders();
       setFeedbackSheet({
         open: true,
-        title: 'Paket Berhasil Diambil! 🛵',
-        message: 'Paket ini resmi Anda bawa ke rute pelosok desa. Status berubah jadi "Dalam Perjalanan".',
+        title: 'Paket Siap Diantar! 🛵',
+        message: `Paket resmi Anda ambil. Ongkir antaran dicatat Rp ${numericOngkir.toLocaleString('id-ID')}${numericHargaPaket > 0 ? ` + COD Barang Rp ${numericHargaPaket.toLocaleString('id-ID')}` : ''}. Status berubah jadi "Dalam Perjalanan".`,
       });
       handleCloseScanner();
     } catch (err) {
@@ -1857,6 +1878,96 @@ export default function DashboardKurir() {
                     </span>
                   </div>
                 </div>
+
+                {/* Penetapan Harga Paket & Ongkir Pelosok oleh Kurir Saat Scan Pertama */}
+                {scanResultOrder.status_pengiriman !== 'dalam_perjalanan' && scanResultOrder.status_pengiriman !== 'terkirim' && (
+                  <div
+                    style={{
+                      background: 'rgba(31, 148, 196, 0.08)',
+                      border: '1.5px solid rgba(31, 148, 196, 0.35)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '12px 14px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px',
+                      marginTop: '4px',
+                    }}
+                  >
+                    <div style={{ fontSize: '13px', fontWeight: '800', color: 'var(--color-primary-dark)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>💰</span>
+                      <span>Tetapkan Tagihan Paket & Ongkir:</span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '4px' }}>
+                          Harga Paket / COD (Rp)
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="0 jika non-COD"
+                          value={scanHargaPaket}
+                          onChange={(e) => setScanHargaPaket(e.target.value)}
+                          style={{
+                            width: '100%',
+                            height: '40px',
+                            padding: '0 10px',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px solid var(--color-border)',
+                            background: 'var(--color-bg-card)',
+                            color: 'var(--color-text-main)',
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            outline: 'none',
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '4px' }}>
+                          Ongkir Kurir (Rp)*
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="Contoh: 10000"
+                          value={scanOngkirKurir}
+                          onChange={(e) => setScanOngkirKurir(e.target.value)}
+                          style={{
+                            width: '100%',
+                            height: '40px',
+                            padding: '0 10px',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1.5px solid var(--color-primary)',
+                            background: 'var(--color-bg-card)',
+                            color: 'var(--color-primary-dark)',
+                            fontSize: '13px',
+                            fontWeight: '800',
+                            outline: 'none',
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Total Tagihan yang Diterima di Tempat */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        borderTop: '1px dashed var(--color-border)',
+                        paddingTop: '8px',
+                        fontSize: '12px',
+                      }}
+                    >
+                      <span style={{ color: 'var(--color-text-muted)', fontWeight: '600' }}>
+                        Total Bayar di Tempat (COD):
+                      </span>
+                      <span style={{ color: 'var(--color-primary-dark)', fontWeight: '800', fontSize: '14.5px' }}>
+                        Rp {((parseFloat(scanHargaPaket) || 0) + (parseFloat(scanOngkirKurir) || 0)).toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Tombol Aksi Kurir */}
                 <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
