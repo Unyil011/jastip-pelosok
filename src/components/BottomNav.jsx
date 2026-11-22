@@ -39,6 +39,19 @@ export default function BottomNav({ role = 'customer' }) {
           path: '/dashboard-kurir',
           icon: '🛵',
         },
+        {
+          id: 'scan',
+          label: 'Scan Resi',
+          path: '/dashboard-kurir?tab=scan',
+          icon: '📷',
+          highlight: true,
+        },
+        {
+          id: 'riwayat-kurir',
+          label: 'Selesai',
+          path: '/dashboard-kurir?status=terkirim',
+          icon: '✅',
+        },
       ];
     }
 

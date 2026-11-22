@@ -114,6 +114,26 @@ export default function OrderHistory() {
     loadOrders();
   }, [profile?.id]);
 
+  // Real-time listener saat ada order baru dibuat atau status diupdate
+  useEffect(() => {
+    const handleOrderEvent = () => {
+      loadOrders();
+    };
+
+    window.addEventListener('jastip:orderCreated', handleOrderEvent);
+    const handleStorage = (e) => {
+      if (e.key === 'jastip_last_order_event') {
+        loadOrders();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener('jastip:orderCreated', handleOrderEvent);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [profile?.id]);
+
   // Cek apakah ada filter kustom yang sedang aktif
   const isCustomFilterActive = useMemo(() => {
     return (

@@ -165,6 +165,26 @@ export default function DashboardAdmin() {
     }
   }, [currentTab]);
 
+  // Real-time Event Listener saat ada order baru dibuat oleh customer
+  useEffect(() => {
+    const handleOrderEvent = () => {
+      loadPendingOrders();
+    };
+
+    window.addEventListener('jastip:orderCreated', handleOrderEvent);
+    const handleStorage = (e) => {
+      if (e.key === 'jastip_last_order_event') {
+        loadPendingOrders();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener('jastip:orderCreated', handleOrderEvent);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
+
   const loadPendingOrders = async () => {
     setLoadingPending(true);
     try {

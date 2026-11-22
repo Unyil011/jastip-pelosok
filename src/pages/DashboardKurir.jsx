@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Html5Qrcode } from 'html5-qrcode';
 import { useAuth } from '../hooks/useAuth';
 import { authService } from '../services/authService';
 import { orderService } from '../services/orderService';
@@ -22,10 +23,20 @@ import {
 
 export default function DashboardKurir() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { profile } = useAuth();
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Scanner Kurir State (Barcode Kamera HP & Input Manual Resi)
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [isScanningCamera, setIsScanningCamera] = useState(false);
+  const [scannedResiInput, setScannedResiInput] = useState('');
+  const [scanResultOrder, setScanResultOrder] = useState(null);
+  const [scanStatus, setScanStatus] = useState(null); // null | 'matched' | 'not_assigned' | 'not_found' | 'loading'
+  const [scanTargetDesa, setScanTargetDesa] = useState('');
+  const kurirScannerRef = useRef(null);
 
   // Logout State
   const [logoutSheetOpen, setLogoutSheetOpen] = useState(false);
@@ -154,6 +165,192 @@ export default function DashboardKurir() {
   useEffect(() => {
     loadKurirOrders();
   }, [profile?.id, profile?.alamat]);
+
+  // Pantau URL query params (misal klik tab Scan Resi di BottomNav)
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    if (searchParams.get('tab') === 'scan') {
+      setScannerOpen(true);
+    }
+    if (searchParams.get('status')) {
+      setStatusFilter(searchParams.get('status'));
+    }
+  }, [location.search]);
+
+  // Real-time Event Listener saat ada order baru dibuat oleh customer
+  useEffect(() => {
+    const handleOrderEvent = () => {
+      loadKurirOrders();
+    };
+
+    window.addEventListener('jastip:orderCreated', handleOrderEvent);
+    const handleStorage = (e) => {
+      if (e.key === 'jastip_last_order_event') {
+        loadKurirOrders();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener('jastip:orderCreated', handleOrderEvent);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [profile?.id, profile?.alamat]);
+
+  // ---------------------------------------------------------
+  // SCANNER RESI CONTROLS UNTUK KURIR
+  // ---------------------------------------------------------
+  const startKurirCamera = async () => {
+    setIsScanningCamera(true);
+    setScanResultOrder(null);
+    setScanStatus('loading');
+
+    try {
+      const scanner = new Html5Qrcode('kurir-camera-stream');
+      kurirScannerRef.current = scanner;
+
+      await scanner.start(
+        { facingMode: 'environment' },
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 180 },
+        },
+        async (decodedText) => {
+          stopKurirCamera();
+          setScannedResiInput(decodedText);
+          handleProcessKurirScan(decodedText);
+        },
+        () => {}
+      );
+      setScanStatus(null);
+    } catch (err) {
+      console.error('Kamera kurir error:', err);
+      setIsScanningCamera(false);
+      setScanStatus(null);
+      setFeedbackSheet({
+        open: true,
+        title: 'Izin Kamera Diperlukan',
+        message: 'Tidak dapat mengakses kamera HP. Silakan izinkan kamera di browser atau gunakan input manual nomor resi.',
+      });
+    }
+  };
+
+  const stopKurirCamera = async () => {
+    if (kurirScannerRef.current) {
+      try {
+        await kurirScannerRef.current.stop();
+        kurirScannerRef.current.clear();
+      } catch (e) {
+        console.error(e);
+      }
+      kurirScannerRef.current = null;
+    }
+    setIsScanningCamera(false);
+  };
+
+  const handleCloseScanner = () => {
+    stopKurirCamera();
+    setScannerOpen(false);
+    setScanStatus(null);
+    setScanResultOrder(null);
+    setScannedResiInput('');
+    if (location.search.includes('tab=scan')) {
+      navigate('/dashboard-kurir', { replace: true });
+    }
+  };
+
+  // Cek apakah desa order masuk wilayah tugas kurir
+  const checkKurirVillageMatch = (order, kurirProfile) => {
+    const wilayah = kurirProfile?.alamat;
+    if (!wilayah || wilayah === 'Semua Desa' || wilayah.toLowerCase().includes('semua')) {
+      return { isMatched: true, desaTujuan: 'Semua Desa (Wilayah Bebas)' };
+    }
+
+    const assignedDesas = wilayah
+      .split(',')
+      .map((d) => d.trim().toLowerCase())
+      .filter(Boolean);
+
+    const alamatLower = (order.alamat_tujuan || '').toLowerCase();
+    const descLower = (order.deskripsi_barang || '').toLowerCase();
+
+    // Deteksi desa dari alamat order
+    let detectedDesa = '';
+    const match = assignedDesas.find((desa) => {
+      if (alamatLower.includes(desa) || descLower.includes(desa)) {
+        detectedDesa = desa;
+        return true;
+      }
+      return false;
+    });
+
+    if (match) {
+      return { isMatched: true, desaTujuan: detectedDesa };
+    }
+
+    // Jika tidak cocok, ekstrak nama desa dari alamat_tujuan jika ada (misal: "Desa Mekarsari")
+    const desaMatch = (order.alamat_tujuan || '').match(/Desa\s+([A-Za-z]+)/i);
+    const targetDesa = desaMatch ? desaMatch[1] : 'Pelosok Lain';
+
+    return { isMatched: false, desaTujuan: targetDesa };
+  };
+
+  // Proses scan atau pencarian resi
+  const handleProcessKurirScan = async (resiText) => {
+    const clean = resiText?.trim();
+    if (!clean) return;
+
+    setScanStatus('loading');
+    setScanResultOrder(null);
+
+    try {
+      const order = await orderService.findOrderByResi(clean);
+      if (!order) {
+        setScanStatus('not_found');
+        return;
+      }
+
+      const { isMatched, desaTujuan } = checkKurirVillageMatch(order, profile);
+      setScanTargetDesa(desaTujuan);
+      setScanResultOrder(order);
+
+      if (isMatched) {
+        setScanStatus('matched');
+      } else {
+        setScanStatus('not_assigned');
+      }
+    } catch (err) {
+      console.error('Scan kurir error:', err);
+      setScanStatus('not_found');
+    }
+  };
+
+  // Kurir ambil & bawa paket dari hasil scan
+  const handleKurirAmbilPaketDariScan = async (orderId) => {
+    if (!orderId) return;
+    setActionLoading(true);
+    try {
+      await orderService.updateDeliveryStatus(orderId, 'dalam_perjalanan', {
+        kurir_id: profile.id,
+        status_konfirmasi: 'dikonfirmasi',
+      });
+      await loadKurirOrders();
+      setFeedbackSheet({
+        open: true,
+        title: 'Paket Berhasil Diambil! 🛵',
+        message: 'Paket ini resmi Anda bawa ke rute pelosok desa. Status berubah jadi "Dalam Perjalanan".',
+      });
+      handleCloseScanner();
+    } catch (err) {
+      setFeedbackSheet({
+        open: true,
+        title: 'Gagal Ambil Paket',
+        message: err.message,
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   // Filter Data berdasarkan Tanggal (Hari Ini, Kemarin, Semua)
   const ordersInDateRange = useMemo(() => {
@@ -433,6 +630,56 @@ export default function DashboardKurir() {
           </div>
         </div>
       </Card>
+
+      {/* Quick Action Bar: Scan Resi Paket Pelosok & Toggle Map */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '10px', marginBottom: '14px' }}>
+        <button
+          onClick={() => {
+            setScannerOpen(true);
+            setTimeout(() => startKurirCamera(), 300);
+          }}
+          style={{
+            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            padding: '12px 14px',
+            fontSize: '13.5px',
+            fontWeight: '800',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            boxShadow: '0 4px 10px rgba(16, 185, 129, 0.35)',
+          }}
+        >
+          <span style={{ fontSize: '18px' }}>📷</span>
+          <span>Scan Resi Paket</span>
+        </button>
+
+        <button
+          onClick={() => setShowMap(!showMap)}
+          style={{
+            background: 'var(--color-bg-card)',
+            color: 'var(--color-text-main)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)',
+            padding: '12px 14px',
+            fontSize: '13px',
+            fontWeight: '700',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            boxShadow: 'var(--skeuo-button-raised)',
+          }}
+        >
+          <span>🗺️</span>
+          <span>{showMap ? 'Tutup Peta' : 'Buka Peta'}</span>
+        </button>
+      </div>
 
       {/* Ringkasan Performa & Kas Harian (Daily Metrics Card) */}
       <Card
@@ -1235,6 +1482,370 @@ export default function DashboardKurir() {
           <div style={{ marginTop: '20px' }}>
             <Button onClick={() => setFeedbackSheet({ ...feedbackSheet, open: false })}>
               Tutup
+            </Button>
+          </div>
+        </div>
+      </BottomSheet>
+
+      {/* BottomSheet Scanner Resi Kurir */}
+      <BottomSheet
+        isOpen={scannerOpen}
+        onClose={handleCloseScanner}
+        title="📷 Scan Barcode / Resi Paket"
+      >
+        <div style={{ padding: '4px 0 16px 0', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* Petunjuk Penggunaan */}
+          <div
+            style={{
+              background: 'rgba(31, 148, 196, 0.08)',
+              border: '1px solid rgba(31, 148, 196, 0.25)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '10px 12px',
+              fontSize: '12px',
+              color: 'var(--color-text-main)',
+              lineHeight: '1.45',
+            }}
+          >
+            Arahkan kamera ke barcode resi paket (Shopee, J&T, SiCepat, dll) atau ketik nomor resi di bawah. Sistem akan mencocokkan pesanan customer dan mengecek wilayah tugas Anda.
+          </div>
+
+          {/* Scanner Kamera Stream */}
+          <div>
+            <div
+              id="kurir-camera-stream"
+              style={{
+                width: '100%',
+                minHeight: isScanningCamera ? '220px' : '0px',
+                background: '#0f172a',
+                borderRadius: 'var(--radius-md)',
+                overflow: 'hidden',
+                display: isScanningCamera ? 'block' : 'none',
+                marginBottom: '10px',
+              }}
+            />
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {!isScanningCamera ? (
+                <Button
+                  onClick={startKurirCamera}
+                  style={{
+                    flex: 1,
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                  }}
+                >
+                  📸 Buka Kamera HP
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={stopKurirCamera}
+                  style={{ flex: 1, color: '#ef4444', borderColor: '#ef4444' }}
+                >
+                  ⏹️ Matikan Kamera
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Input Manual Nomor Resi (Alternatif jika barcode rusak) */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleProcessKurirScan(scannedResiInput);
+            }}
+            style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}
+          >
+            <div style={{ flex: 1 }}>
+              <Input
+                label="Atau Ketik Nomor Resi Manual"
+                placeholder="Contoh: SPXID..., JP123..."
+                value={scannedResiInput}
+                onChange={(e) => setScannedResiInput(e.target.value)}
+              />
+            </div>
+            <Button
+              type="submit"
+              loading={scanStatus === 'loading'}
+              style={{ height: '42px', padding: '0 16px' }}
+            >
+              Cari Data
+            </Button>
+          </form>
+
+          {/* Indikator Loading */}
+          {scanStatus === 'loading' && (
+            <div style={{ textAlign: 'center', padding: '16px' }}>
+              <SkeletonLoader type="card" height="120px" />
+              <p style={{ fontSize: '12px', color: 'var(--color-text-dim)', marginTop: '8px' }}>
+                Mencari data pesanan kustomer di database...
+              </p>
+            </div>
+          )}
+
+          {/* Hasil: Resi Tidak Ditemukan */}
+          {scanStatus === 'not_found' && (
+            <div
+              style={{
+                background: '#fffbeb',
+                border: '1px solid #f59e0b',
+                borderRadius: 'var(--radius-sm)',
+                padding: '12px 14px',
+                color: '#92400e',
+                fontSize: '13px',
+                lineHeight: '1.4',
+              }}
+            >
+              <b>❌ Nomor Resi Belum Terdaftar</b>
+              <p style={{ margin: '4px 0 0 0', fontSize: '12px' }}>
+                Paket dengan resi "{scannedResiInput}" belum pernah dibuat pesanannya oleh customer di aplikasi. Harap hubungi Admin Hub jika paket ini perlu didaftarkan manual.
+              </p>
+            </div>
+          )}
+
+          {/* Hasil: Bukan Wilayah Tugas Kurir Ini */}
+          {scanStatus === 'not_assigned' && scanResultOrder && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div
+                style={{
+                  background: '#fef2f2',
+                  border: '1.5px solid #ef4444',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '12px 14px',
+                  color: '#991b1b',
+                  fontSize: '13px',
+                  lineHeight: '1.45',
+                }}
+              >
+                <div style={{ fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>⚠️</span>
+                  <span>BUKAN WILAYAH TUGAS ANDA!</span>
+                </div>
+                <div style={{ marginTop: '4px', fontSize: '12px' }}>
+                  Paket ini menuju <b>Desa {scanTargetDesa}</b>, sedangkan wilayah tugas Anda adalah: <b>{profile?.alamat || 'Desa Lain'}</b>.
+                </div>
+                <div style={{ marginTop: '4px', fontSize: '11.5px', color: '#b91c1c' }}>
+                  Silakan serahkan paket ini ke kurir yang ditugaskan menangani Desa {scanTargetDesa}.
+                </div>
+              </div>
+
+              {/* Rincian Singkat Penerima */}
+              <Card padding="12px 14px" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-dim)' }}>Tujuan Pengantaran:</div>
+                <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--color-text-main)', marginTop: '2px' }}>
+                  {scanResultOrder.customer?.nama || 'Customer'}
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                  {scanResultOrder.alamat_tujuan}
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* Hasil: Cocok & Data Customer Muncul Lengkap */}
+          {scanStatus === 'matched' && scanResultOrder && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* Badge Wilayah Valid */}
+              <div
+                style={{
+                  background: '#ecfdf5',
+                  border: '1.5px solid #10b981',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '10px 12px',
+                  color: '#065f46',
+                  fontSize: '12.5px',
+                  fontWeight: '700',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span>✅</span>
+                <span>Wilayah Pengantaran Anda ({profile?.alamat || 'Semua Desa'})</span>
+              </div>
+
+              {/* Kartu Detail Lengkap Pesanan Customer */}
+              <Card
+                padding="14px 16px"
+                style={{
+                  background: 'var(--color-bg-card)',
+                  border: '1px solid var(--color-border)',
+                  boxShadow: 'var(--skeuo-card-shadow)',
+                }}
+              >
+                {/* Header Resi & Status */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px', borderBottom: '1px solid var(--color-border)', paddingBottom: '10px' }}>
+                  <div>
+                    <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', fontWeight: '600', textTransform: 'uppercase' }}>
+                      Nomor Resi Paket
+                    </span>
+                    <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--color-primary)', margin: '2px 0 0 0', letterSpacing: '0.5px' }}>
+                      {scanResultOrder.nomor_resi || '-'}
+                    </h3>
+                  </div>
+                  <Badge variant={scanResultOrder.status_pengiriman === 'dalam_perjalanan' ? 'primary' : 'warning'}>
+                    {scanResultOrder.status_pengiriman === 'dipesan'
+                      ? 'Dipesan Customer'
+                      : scanResultOrder.status_pengiriman === 'diterima_hub'
+                      ? 'Siap di Hub'
+                      : scanResultOrder.status_pengiriman === 'dalam_perjalanan'
+                      ? 'Dalam Perjalanan'
+                      : scanResultOrder.status_pengiriman}
+                  </Badge>
+                </div>
+
+                {/* Data Penerima / Customer */}
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '11.5px', color: 'var(--color-text-dim)', fontWeight: '600' }}>
+                    Penerima Paket:
+                  </div>
+                  <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--color-text-main)', marginTop: '2px' }}>
+                    {scanResultOrder.customer?.nama || 'Customer'}
+                  </div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', marginTop: '3px', lineHeight: '1.4' }}>
+                    📍 {scanResultOrder.alamat_tujuan || '-'}
+                  </div>
+
+                  {/* Tombol Kontak WhatsApp & Telepon */}
+                  {scanResultOrder.customer?.no_hp && (
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                      <a
+                        href={`https://wa.me/62${scanResultOrder.customer.no_hp.replace(/^0+/, '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          flex: 1,
+                          background: '#25D366',
+                          color: '#ffffff',
+                          padding: '8px 10px',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          textDecoration: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <span>💬</span>
+                        <span>Chat WhatsApp</span>
+                      </a>
+                      <a
+                        href={`tel:${scanResultOrder.customer.no_hp}`}
+                        style={{
+                          flex: 1,
+                          background: 'var(--color-primary)',
+                          color: '#ffffff',
+                          padding: '8px 10px',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          textDecoration: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <span>📞</span>
+                        <span>Telepon</span>
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                {/* Detail Barang & Pembayaran */}
+                <div
+                  style={{
+                    background: 'var(--color-bg-input)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '10px 12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    fontSize: '12px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Barang:</span>
+                    <span style={{ fontWeight: '700', color: 'var(--color-text-main)' }}>
+                      {scanResultOrder.deskripsi_barang || 'Paket Ekspedisi'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Metode Bayar:</span>
+                    <span style={{ fontWeight: '700', color: 'var(--color-text-main)' }}>
+                      {scanResultOrder.metode_pembayaran || 'COD'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Jalur Hub:</span>
+                    <span style={{ fontWeight: '600', color: 'var(--color-text-dim)' }}>
+                      {scanResultOrder.jalur?.nama_jalur || 'Jalur Hub Pelosok'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Tombol Aksi Kurir */}
+                <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {scanResultOrder.status_pengiriman !== 'dalam_perjalanan' && scanResultOrder.status_pengiriman !== 'terkirim' && (
+                    <Button
+                      onClick={() => handleKurirAmbilPaketDariScan(scanResultOrder.id)}
+                      loading={actionLoading}
+                      style={{
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        color: '#ffffff',
+                        border: 'none',
+                        padding: '12px',
+                        fontSize: '13.5px',
+                        fontWeight: '800',
+                      }}
+                    >
+                      🚀 Ambil Paket & Mulai Antar ke Pelosok
+                    </Button>
+                  )}
+
+                  {scanResultOrder.status_pengiriman === 'dalam_perjalanan' && (
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <Button
+                        onClick={() => {
+                          setSelectedOrder(scanResultOrder);
+                          setSelesaiSheetOpen(true);
+                          handleCloseScanner();
+                        }}
+                        style={{ flex: 1.2, background: 'var(--color-primary)', color: '#ffffff' }}
+                      >
+                        ✅ Selesaikan (Terkirim)
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          openReturSheet(scanResultOrder);
+                          handleCloseScanner();
+                        }}
+                        style={{ flex: 1, color: '#dc2626', borderColor: '#ef4444' }}
+                      >
+                        ⚠️ Retur
+                      </Button>
+                    </div>
+                  )}
+
+                  {scanResultOrder.status_pengiriman === 'terkirim' && (
+                    <div style={{ textAlign: 'center', padding: '8px', color: '#059669', fontWeight: '700', fontSize: '13px' }}>
+                      ✅ Paket ini sudah berhasil diantar ke penerima.
+                    </div>
+                  )}
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* Tombol Tutup */}
+          <div style={{ marginTop: '6px' }}>
+            <Button variant="outline" onClick={handleCloseScanner} style={{ width: '100%' }}>
+              Tutup Scanner
             </Button>
           </div>
         </div>
