@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { authService } from '../services/authService';
 import { orderService } from '../services/orderService';
@@ -17,6 +17,7 @@ import Sidebar from '../components/Sidebar';
 
 export default function DashboardCustomer() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { profile, refreshProfile, isProfileComplete } = useAuth();
   const fileInputRef = useRef(null);
 
@@ -26,6 +27,36 @@ export default function DashboardCustomer() {
   const [logoutSheetOpen, setLogoutSheetOpen] = useState(false);
   const [noticeSheetOpen, setNoticeSheetOpen] = useState(false);
   const [noticeMessage, setNoticeMessage] = useState('');
+
+  // State Peringatan Profil Belum Lengkap Saat Mau Order
+  const [incompleteOrderPrompt, setIncompleteOrderPrompt] = useState({
+    open: false,
+    serviceType: 'paket_ekspedisi',
+  });
+
+  // Listener bila dialihkan dari /buat-order karena profil belum lengkap
+  useEffect(() => {
+    if (location.state?.openIncompleteNotice && !isProfileComplete) {
+      setIncompleteOrderPrompt({
+        open: true,
+        serviceType: location.state?.service || 'paket_ekspedisi',
+      });
+      // Bersihkan state agar tidak berulang saat refresh
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, isProfileComplete, navigate]);
+
+  // Handler Saat Customer Mau Membuat Pesanan
+  const handleStartOrder = (serviceType = 'paket_ekspedisi') => {
+    if (!isProfileComplete) {
+      setIncompleteOrderPrompt({
+        open: true,
+        serviceType,
+      });
+      return;
+    }
+    navigate('/buat-order', { state: { service: serviceType } });
+  };
 
   // Active Order Live Tracking State
   const [activeOrder, setActiveOrder] = useState(null);
@@ -485,6 +516,69 @@ export default function DashboardCustomer() {
         </button>
       </div>
 
+      {/* Peringatan Menonjol Bila Data Profil & Alamat Belum Lengkap */}
+      {!isProfileComplete && (
+        <div
+          style={{
+            marginBottom: '16px',
+            borderRadius: '16px',
+            border: '1.5px solid #f59e0b',
+            background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+            padding: '14px 16px',
+            boxShadow: '0 4px 14px rgba(245, 158, 11, 0.15)',
+          }}
+        >
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '26px', lineHeight: 1 }}>⚠️</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    background: '#f59e0b',
+                    color: '#ffffff',
+                    fontSize: '10px',
+                    fontWeight: '800',
+                    padding: '2px 8px',
+                    borderRadius: '20px',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Wajib Dilengkapi
+                </span>
+                <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#92400e', margin: 0 }}>
+                  Alamat & No. WhatsApp Belum Lengkap
+                </h4>
+              </div>
+
+              <p style={{ fontSize: '12px', color: '#78350f', marginTop: '6px', marginBottom: '10px', lineHeight: '1.45' }}>
+                Sebelum bisa membuat pesanan titip barang atau kirim paket ekspedisi, mohon lengkapi nomor WhatsApp dan alamat rumah Anda agar kurir tahu titik tujuan pengantaran.
+              </p>
+
+              <button
+                onClick={() => setProfileSheetOpen(true)}
+                style={{
+                  background: '#d97706',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '7px 14px',
+                  fontSize: '12px',
+                  fontWeight: '800',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(217, 119, 6, 0.3)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span>✍️</span>
+                <span>Lengkapi Profil Sekarang</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 2. Hero Banner Solusi Jastip Pelosok */}
       <div
         style={{
@@ -554,7 +648,7 @@ export default function DashboardCustomer() {
             </p>
 
             <button
-              onClick={() => navigate('/buat-order')}
+              onClick={() => handleStartOrder('paket_ekspedisi')}
               style={{
                 background: '#ffffff',
                 color: '#064e3b',
@@ -613,7 +707,7 @@ export default function DashboardCustomer() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
           {/* Layanan 1: Paket Ekspedisi */}
           <div
-            onClick={() => navigate('/buat-order', { state: { service: 'paket_ekspedisi' } })}
+            onClick={() => handleStartOrder('paket_ekspedisi')}
             style={{
               padding: '14px',
               borderRadius: 'var(--radius-md)',
@@ -655,7 +749,7 @@ export default function DashboardCustomer() {
 
           {/* Layanan 2: Titip Barang */}
           <div
-            onClick={() => navigate('/buat-order', { state: { service: 'titip_beli' } })}
+            onClick={() => handleStartOrder('titip_beli')}
             style={{
               padding: '14px',
               borderRadius: 'var(--radius-md)',
@@ -1483,6 +1577,78 @@ export default function DashboardCustomer() {
         confirmText="Ya, Keluar"
         confirmVariant="danger"
       />
+
+      {/* BottomSheet: Peringatan Data Belum Lengkap Saat Mau Order */}
+      <BottomSheet
+        isOpen={incompleteOrderPrompt.open}
+        onClose={() => setIncompleteOrderPrompt({ ...incompleteOrderPrompt, open: false })}
+        title="Lengkapi Data Diri Dulu 📝"
+      >
+        <div style={{ textAlign: 'center', padding: '10px 0 16px 0' }}>
+          <div
+            style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '50%',
+              background: '#fef3c7',
+              border: '2px solid #f59e0b',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '28px',
+              margin: '0 auto 12px auto',
+            }}
+          >
+            📋
+          </div>
+
+          <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--color-primary-dark)', margin: '0 0 6px 0' }}>
+            Data Pengiriman Belum Lengkap
+          </h3>
+
+          <p style={{ fontSize: '13px', color: 'var(--color-text-main)', lineHeight: '1.5', maxWidth: '340px', margin: '0 auto 16px auto' }}>
+            Halo <b>{profile?.nama || 'Pelanggan'}</b>! Agar kurir kami dapat mengantarkan paket titipan sampai ke depan pintu rumah Anda di pelosok, kami memerlukan <b>Nomor WhatsApp</b> dan <b>Alamat Lengkap</b> Anda.
+          </p>
+
+          <div
+            style={{
+              background: 'var(--color-bg-base)',
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border)',
+              fontSize: '12.5px',
+              textAlign: 'left',
+              marginBottom: '20px',
+              color: 'var(--color-text-main)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+            }}
+          >
+            <div>📱 <b>Nomor WhatsApp:</b> {profile?.no_hp ? `✅ ${profile.no_hp}` : '❌ Belum diisi'}</div>
+            <div>🏡 <b>Alamat Rumah:</b> {profile?.alamat ? `✅ ${profile.alamat}` : '❌ Belum diisi'}</div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <Button
+              variant="outline"
+              onClick={() => setIncompleteOrderPrompt({ ...incompleteOrderPrompt, open: false })}
+              style={{ flex: 1 }}
+            >
+              Nanti Saja
+            </Button>
+            <Button
+              onClick={() => {
+                setIncompleteOrderPrompt({ ...incompleteOrderPrompt, open: false });
+                setProfileSheetOpen(true);
+              }}
+              style={{ flex: 2 }}
+            >
+              ✍️ Lengkapi Sekarang
+            </Button>
+          </div>
+        </div>
+      </BottomSheet>
 
       {/* General Notification Sheet */}
       <BottomSheet isOpen={noticeSheetOpen} onClose={() => setNoticeSheetOpen(false)} title="Informasi">

@@ -196,10 +196,21 @@ export const authService = {
     if (authError) {
       if (authError.message?.includes('Email not confirmed')) {
         throw new Error(
-          'Email belum diverifikasi di Supabase. Harap nonaktifkan toggle "Confirm email" di Dashboard Supabase (Authentication -> Providers -> Email) atau jalankan file "quick_setup_auth.sql" di SQL Editor.'
+          'Email belum diverifikasi di Supabase. Harap nonaktifkan toggle "Confirm email" di Dashboard Supabase (Authentication -> Providers -> Email).'
         );
       }
-      throw new Error('Nomor HP / Email atau kata sandi tidak sesuai.');
+      if (
+        authError.message?.includes('Database error querying schema') ||
+        authError.message?.includes('Database error finding user')
+      ) {
+        throw new Error(
+          'Akun ini mengalami konflik auth internal Supabase (terjadi karena data di-insert manual lewat SQL Editor). Silakan gunakan akun siap pakai: Kurir (081234567899 / Password123!) atau Admin (admin_utama@jastip.com / ChangeMe123!).'
+        );
+      }
+      if (authError.message?.includes('Invalid login credentials')) {
+        throw new Error('Nomor HP / Email atau kata sandi tidak sesuai.');
+      }
+      throw new Error(authError.message || 'Nomor HP / Email atau kata sandi tidak sesuai.');
     }
 
     const userId = authData.user.id;

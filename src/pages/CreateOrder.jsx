@@ -21,12 +21,15 @@ export default function CreateOrder() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logoutSheetOpen, setLogoutSheetOpen] = useState(false);
 
-  // Guard: Jika data profil belum lengkap, paksa kembali ke dashboard customer untuk melengkapi data
+  // Guard: Jika data profil belum lengkap, arahkan kembali ke dashboard customer dengan modal panduan
   useEffect(() => {
     if (profile && profile.role === 'customer' && !isProfileComplete) {
-      navigate('/dashboard-customer', { replace: true });
+      navigate('/dashboard-customer', {
+        replace: true,
+        state: { openIncompleteNotice: true, service: jenisBarang },
+      });
     }
-  }, [profile, isProfileComplete, navigate]);
+  }, [profile, isProfileComplete, navigate, jenisBarang]);
 
   // State Form
   const [jenisBarang, setJenisBarang] = useState(

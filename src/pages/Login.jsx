@@ -304,16 +304,36 @@ export default function Login() {
               <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--color-primary-dark)' }}>
                 LOGIN KHUSUS ADMIN & KURIR
               </span>
-              <p style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', margin: '2px 0 0 0' }}>
-                Akun kurir didaftarkan resmi oleh Administrator
+              <p style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', margin: '2px 0 8px 0' }}>
+                Akun kurir & admin resmi untuk operasional
               </p>
+              <div
+                style={{
+                  background: 'var(--color-bg-card)',
+                  border: '1px dashed var(--color-primary)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '10px 12px',
+                  fontSize: '11.5px',
+                  color: 'var(--color-text-main)',
+                  lineHeight: '1.5',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <span>🏍️ <strong>Kurir:</strong> <code>081234567899</code></span>
+                  <span style={{ color: 'var(--color-text-muted)' }}>Sandi: <code>Password123!</code></span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>👑 <strong>Admin:</strong> <code>admin_utama@jastip.com</code></span>
+                  <span style={{ color: 'var(--color-text-muted)' }}>Sandi: <code>ChangeMe123!</code></span>
+                </div>
+              </div>
             </div>
 
             <form onSubmit={handleStaffLogin}>
               <Input
                 label="Nomor HP atau Email Petugas / Admin"
                 type="text"
-                placeholder="Contoh: 081234567890 atau admin@jastip.com"
+                placeholder="Contoh: 081234567899 atau admin_utama@jastip.com"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 required
