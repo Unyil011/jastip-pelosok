@@ -94,9 +94,21 @@ export default function DashboardKurir() {
   // Feedback Notification Sheet
   const [feedbackSheet, setFeedbackSheet] = useState({ open: false, title: '', message: '' });
 
-  // Peta & GPS Tracking Kurir Realtime (Persisted state)
-  const [courierLocation, setCourierLocation] = useState(null);
-  const [trackingGps, setTrackingGps] = useState(false);
+  // Peta & GPS Tracking Kurir Realtime (Persisted state & Auto Reconnect on Refresh)
+  const [courierLocation, setCourierLocation] = useState(() => {
+    try {
+      const saved = localStorage.getItem('kurir_last_location');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return null;
+  });
+
+  const [trackingGps, setTrackingGps] = useState(() => {
+    return localStorage.getItem('kurir_tracking_gps') === 'true';
+  });
+
   const [showMap, setShowMap] = useState(() => {
     const saved = sessionStorage.getItem('kurir_show_map');
     return saved !== null ? saved === 'true' : true;
@@ -105,43 +117,76 @@ export default function DashboardKurir() {
   useEffect(() => {
     sessionStorage.setItem('kurir_show_map', String(showMap));
   }, [showMap]);
+
   const watchIdRef = useRef(null);
 
-  // Toggle GPS Tracker
+  // Fungsi Mulai Tracking GPS (Persistent)
+  const startGpsWatch = () => {
+    if (!navigator.geolocation) {
+      setTrackingGps(false);
+      localStorage.setItem('kurir_tracking_gps', 'false');
+      setFeedbackSheet({
+        open: true,
+        title: 'GPS Tidak Didukung',
+        message: 'Browser HP Anda tidak mendukung deteksi lokasi GPS.',
+      });
+      return;
+    }
+
+    if (watchIdRef.current) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+    }
+
+    setTrackingGps(true);
+    localStorage.setItem('kurir_tracking_gps', 'true');
+
+    const id = navigator.geolocation.watchPosition(
+      (pos) => {
+        const newLoc = [pos.coords.latitude, pos.coords.longitude];
+        setCourierLocation(newLoc);
+        try {
+          localStorage.setItem('kurir_last_location', JSON.stringify(newLoc));
+        } catch (e) {
+          console.error(e);
+        }
+      },
+      (err) => {
+        console.warn('Gagal membaca GPS kurir:', err);
+        // Jangan langsung matikan toggle saat sementara sinyal GPS hilang di bukit pelosok
+      },
+      { enableHighAccuracy: true, maximumAge: 4000, timeout: 15000 }
+    );
+    watchIdRef.current = id;
+  };
+
+  // Fungsi Hentikan Tracking GPS
+  const stopGpsWatch = () => {
+    if (watchIdRef.current) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    setTrackingGps(false);
+    localStorage.setItem('kurir_tracking_gps', 'false');
+    localStorage.removeItem('kurir_last_location');
+    setCourierLocation(null);
+  };
+
+  // Toggle GPS Tracker (Klik Tombol GPS Aktif / Nyalakan GPS)
   const toggleGpsTracking = () => {
     if (trackingGps) {
-      if (watchIdRef.current) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
-      setTrackingGps(false);
-      setCourierLocation(null);
+      stopGpsWatch();
     } else {
-      if (!navigator.geolocation) {
-        setFeedbackSheet({
-          open: true,
-          title: 'GPS Tidak Didukung',
-          message: 'Browser HP Anda tidak mendukung deteksi lokasi GPS.',
-        });
-        return;
-      }
-
-      setTrackingGps(true);
-      const id = navigator.geolocation.watchPosition(
-        (pos) => {
-          setCourierLocation([pos.coords.latitude, pos.coords.longitude]);
-        },
-        (err) => {
-          console.error('Gagal membaca GPS kurir:', err);
-          setTrackingGps(false);
-        },
-        { enableHighAccuracy: true, maximumAge: 5000, timeout: 12000 }
-      );
-      watchIdRef.current = id;
+      startGpsWatch();
     }
   };
 
+  // Otomatis Sambungkan Kembali GPS Saat Halaman Di-refresh / Buka Ulang Jika Belum Dimatikan
   useEffect(() => {
+    const isSavedActive = localStorage.getItem('kurir_tracking_gps') === 'true';
+    if (isSavedActive) {
+      startGpsWatch();
+    }
+
     return () => {
       if (watchIdRef.current) {
         navigator.geolocation.clearWatch(watchIdRef.current);
