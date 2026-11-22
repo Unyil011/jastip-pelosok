@@ -1,25 +1,19 @@
 -- ==============================================================================
--- SKRIP SETUP OTOMATIS: AKUN ADMIN & KURIR + AKTIVASI LOGIN (JASTIP PELOSOK)
+-- SKRIP SETUP OTOMATIS: AKUN ADMIN & KURIR + IDENTITAS AUTH (JASTIP PELOSOK)
 -- ==============================================================================
--- Cara pakai:
--- 1. Buka Supabase Dashboard Anda (https://supabase.com/dashboard)
--- 2. Pilih menu "SQL Editor" di bilah samping kiri -> Klik "New query"
--- 3. Tempel (Paste) seluruh skrip di bawah ini, lalu klik tombol "RUN" (hijau)
+-- Jalankan skrip ini di Supabase Dashboard -> SQL Editor -> New Query -> RUN
 -- ==============================================================================
 
--- 1. Aktifkan ekstensi pgcrypto untuk hash password
+-- 1. Aktifkan ekstensi pgcrypto
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- 2. Konfirmasi semua email di auth.users agar TIDAK terblokir verifikasi email
+-- 2. Konfirmasi semua email di auth.users agar TIDAK terblokir verifikasi
 UPDATE auth.users SET email_confirmed_at = NOW() WHERE email_confirmed_at IS NULL;
 
 -- 3. Daftarkan status 'retur' ke delivery_status enum bila belum ada
 ALTER TYPE delivery_status ADD VALUE IF NOT EXISTS 'retur';
 
--- 4. BUAT AKUN ADMIN OTOMATIS
---    Login dengan:
---    Email/HP: admin@jastip.com (atau 080000000000)
---    Password: ChangeMe123!
+-- 4. BUAT AKUN ADMIN (admin@jastip.com / ChangeMe123!)
 DO $$
 DECLARE
   v_admin_id uuid;
@@ -56,10 +50,7 @@ BEGIN
     status_approval = 'approved';
 END $$;
 
--- 5. BUAT AKUN KURIR OTOMATIS
---    Login dengan:
---    No HP: 081234567890
---    Password: Password123!
+-- 5. BUAT AKUN KURIR (081234567890 / Password123!)
 DO $$
 DECLARE
   v_kurir_id uuid;
@@ -95,3 +86,20 @@ BEGIN
     role = 'kurir',
     status_approval = 'approved';
 END $$;
+
+-- 6. KRUSIAL: Isi tabel auth.identities untuk semua akun auth
+--    (Supabase GoTrue mewajibkan adanya entri identitas agar login tidak menghasilkan error 500)
+INSERT INTO auth.identities (id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+SELECT
+  id,
+  id,
+  json_build_object('sub', id::text, 'email', email)::jsonb,
+  'email',
+  NOW(),
+  NOW(),
+  NOW()
+FROM auth.users
+WHERE id NOT IN (SELECT user_id FROM auth.identities);
+
+-- 7. Pastikan semua kurir berstatus approved
+UPDATE public.users SET status_approval = 'approved' WHERE role = 'kurir';
