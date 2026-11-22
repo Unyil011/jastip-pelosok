@@ -74,8 +74,16 @@ export default function DashboardCustomer() {
   const [pastedMapText, setPastedMapText] = useState('');
   const [mapParseStatus, setMapParseStatus] = useState(null); // 'success' | 'shortlink' | 'error' | null
 
-  // State Kalkulator Ongkir Cepat
-  const [calcDesaId, setCalcDesaId] = useState('');
+  // State Kalkulator Ongkir Cepat dengan persistence (tetap tersimpan saat refresh)
+  const [calcDesaId, setCalcDesaId] = useState(() => {
+    return sessionStorage.getItem('customer_calc_desa') || '';
+  });
+
+  useEffect(() => {
+    if (calcDesaId) {
+      sessionStorage.setItem('customer_calc_desa', calcDesaId);
+    }
+  }, [calcDesaId]);
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Data 11 Desa Pelosok

@@ -43,10 +43,29 @@ export default function DashboardKurir() {
     }
   };
 
-  // Filter & Pencarian
-  const [dateFilter, setDateFilter] = useState('hari_ini'); // 'hari_ini' | 'kemarin' | 'semua'
-  const [statusFilter, setStatusFilter] = useState('semua'); // 'semua' | 'diterima_hub' | 'dalam_perjalanan' | 'terkirim' | 'retur'
-  const [searchQuery, setSearchQuery] = useState('');
+  // Filter & Pencarian dengan Persistence (Posisi tetap sama setelah refresh)
+  const [dateFilter, setDateFilter] = useState(() => {
+    return sessionStorage.getItem('kurir_date_filter') || 'hari_ini';
+  });
+  const [statusFilter, setStatusFilter] = useState(() => {
+    return sessionStorage.getItem('kurir_status_filter') || 'semua';
+  });
+  const [searchQuery, setSearchQuery] = useState(() => {
+    return sessionStorage.getItem('kurir_search_query') || '';
+  });
+
+  // Simpan otomatis filter kurir ke sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('kurir_date_filter', dateFilter);
+  }, [dateFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem('kurir_status_filter', statusFilter);
+  }, [statusFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem('kurir_search_query', searchQuery);
+  }, [searchQuery]);
 
   // BottomSheet State untuk aksi status
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -64,10 +83,17 @@ export default function DashboardKurir() {
   // Feedback Notification Sheet
   const [feedbackSheet, setFeedbackSheet] = useState({ open: false, title: '', message: '' });
 
-  // Peta & GPS Tracking Kurir Realtime
+  // Peta & GPS Tracking Kurir Realtime (Persisted state)
   const [courierLocation, setCourierLocation] = useState(null);
   const [trackingGps, setTrackingGps] = useState(false);
-  const [showMap, setShowMap] = useState(true);
+  const [showMap, setShowMap] = useState(() => {
+    const saved = sessionStorage.getItem('kurir_show_map');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem('kurir_show_map', String(showMap));
+  }, [showMap]);
   const watchIdRef = useRef(null);
 
   // Toggle GPS Tracker

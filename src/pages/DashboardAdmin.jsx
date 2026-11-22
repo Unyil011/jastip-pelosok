@@ -19,7 +19,29 @@ import { formatDateIndonesia } from '../utils/formatters';
 export default function DashboardAdmin() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const currentTab = searchParams.get('tab') || 'pending'; // 'pending' | 'scan' | 'kurir'
+
+  // Tab aktif dengan persistence (tersimpan di sessionStorage & URL query)
+  const [currentTab, setCurrentTab] = useState(() => {
+    const fromUrl = searchParams.get('tab');
+    if (fromUrl) return fromUrl;
+    return sessionStorage.getItem('admin_active_tab') || 'pending';
+  });
+
+  const handleTabChange = (tabName) => {
+    setCurrentTab(tabName);
+    setSearchParams({ tab: tabName }, { replace: true });
+    sessionStorage.setItem('admin_active_tab', tabName);
+  };
+
+  useEffect(() => {
+    const fromUrl = searchParams.get('tab');
+    if (fromUrl && fromUrl !== currentTab) {
+      setCurrentTab(fromUrl);
+      sessionStorage.setItem('admin_active_tab', fromUrl);
+    } else if (!fromUrl && currentTab) {
+      setSearchParams({ tab: currentTab }, { replace: true });
+    }
+  }, [searchParams, currentTab, setSearchParams]);
 
   // Logout State
   const [logoutSheetOpen, setLogoutSheetOpen] = useState(false);
@@ -40,28 +62,74 @@ export default function DashboardAdmin() {
   // Tab 1: Orders Pending
   const [pendingOrders, setPendingOrders] = useState([]);
   const [loadingPending, setLoadingPending] = useState(false);
+  const [pendingSearch, setPendingSearch] = useState(() => {
+    return sessionStorage.getItem('admin_pending_search') || '';
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem('admin_pending_search', pendingSearch);
+  }, [pendingSearch]);
 
   // Tab 2: Scanner Barcode
   const [isScanning, setIsScanning] = useState(false);
-  const [scannedResi, setScannedResi] = useState('');
+  const [scannedResi, setScannedResi] = useState(() => {
+    return sessionStorage.getItem('admin_scanned_resi') || '';
+  });
   const [matchedOrder, setMatchedOrder] = useState(null);
   const [scanNotFound, setScanNotFound] = useState(false);
   const scannerRef = useRef(null);
 
-  // Form Buat Order Manual Admin jika tidak ketemu
+  useEffect(() => {
+    sessionStorage.setItem('admin_scanned_resi', scannedResi);
+  }, [scannedResi]);
+
+  // Form Buat Order Manual Admin jika tidak ketemu (disimpan di sessionStorage agar aman saat refresh)
   const [customers, setCustomers] = useState([]);
   const [desaList, setDesaList] = useState([]);
-  const [manualCustomerId, setManualCustomerId] = useState('');
-  const [manualDesaId, setManualDesaId] = useState('');
-  const [manualDeskripsi, setManualDeskripsi] = useState('');
-  const [manualAlamat, setManualAlamat] = useState('');
-  const [manualMetode, setManualMetode] = useState('COD');
+  const [manualCustomerId, setManualCustomerId] = useState(() => {
+    return sessionStorage.getItem('admin_manual_cust_id') || '';
+  });
+  const [manualDesaId, setManualDesaId] = useState(() => {
+    return sessionStorage.getItem('admin_manual_desa_id') || '';
+  });
+  const [manualDeskripsi, setManualDeskripsi] = useState(() => {
+    return sessionStorage.getItem('admin_manual_deskripsi') || '';
+  });
+  const [manualAlamat, setManualAlamat] = useState(() => {
+    return sessionStorage.getItem('admin_manual_alamat') || '';
+  });
+  const [manualMetode, setManualMetode] = useState(() => {
+    return sessionStorage.getItem('admin_manual_metode') || 'COD';
+  });
   const [creatingManual, setCreatingManual] = useState(false);
+
+  useEffect(() => {
+    sessionStorage.setItem('admin_manual_cust_id', manualCustomerId);
+  }, [manualCustomerId]);
+  useEffect(() => {
+    sessionStorage.setItem('admin_manual_desa_id', manualDesaId);
+  }, [manualDesaId]);
+  useEffect(() => {
+    sessionStorage.setItem('admin_manual_deskripsi', manualDeskripsi);
+  }, [manualDeskripsi]);
+  useEffect(() => {
+    sessionStorage.setItem('admin_manual_alamat', manualAlamat);
+  }, [manualAlamat]);
+  useEffect(() => {
+    sessionStorage.setItem('admin_manual_metode', manualMetode);
+  }, [manualMetode]);
 
   // Tab 3: Manajemen Kurir (Daftar & Tambah Kurir Baru)
   const [kurirList, setKurirList] = useState([]);
   const [jalurList, setJalurList] = useState([]);
   const [loadingKurir, setLoadingKurir] = useState(false);
+  const [kurirSearch, setKurirSearch] = useState(() => {
+    return sessionStorage.getItem('admin_kurir_search') || '';
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem('admin_kurir_search', kurirSearch);
+  }, [kurirSearch]);
   const [showAddKurirModal, setShowAddKurirModal] = useState(false);
 
   // Form Tambah Kurir Baru oleh Admin
@@ -266,6 +334,11 @@ export default function DashboardAdmin() {
       setScannedResi('');
       setManualDeskripsi('');
       setManualAlamat('');
+      sessionStorage.removeItem('admin_manual_cust_id');
+      sessionStorage.removeItem('admin_manual_desa_id');
+      sessionStorage.removeItem('admin_manual_deskripsi');
+      sessionStorage.removeItem('admin_manual_alamat');
+      sessionStorage.removeItem('admin_scanned_resi');
     } catch (err) {
       setFeedbackSheet({
         open: true,
@@ -457,7 +530,7 @@ export default function DashboardAdmin() {
         }}
       >
         <button
-          onClick={() => setSearchParams({ tab: 'pending' })}
+          onClick={() => handleTabChange('pending')}
           style={{
             flex: 1,
             padding: '8px 4px',
@@ -479,7 +552,7 @@ export default function DashboardAdmin() {
         </button>
 
         <button
-          onClick={() => setSearchParams({ tab: 'scan' })}
+          onClick={() => handleTabChange('scan')}
           style={{
             flex: 1,
             padding: '8px 4px',
@@ -501,7 +574,7 @@ export default function DashboardAdmin() {
         </button>
 
         <button
-          onClick={() => setSearchParams({ tab: 'kurir' })}
+          onClick={() => handleTabChange('kurir')}
           style={{
             flex: 1,
             padding: '8px 4px',
@@ -528,6 +601,17 @@ export default function DashboardAdmin() {
       {/* ========================================================================= */}
       {currentTab === 'pending' && (
         <div>
+          {/* Kolom Pencarian Resi / Customer Pending */}
+          {pendingOrders.length > 0 && (
+            <div style={{ marginBottom: '12px' }}>
+              <Input
+                placeholder="🔍 Cari resi, nama, HP, atau desa pending..."
+                value={pendingSearch}
+                onChange={(e) => setPendingSearch(e.target.value)}
+              />
+            </div>
+          )}
+
           {loadingPending ? (
             <SkeletonLoader type="list" count={3} />
           ) : pendingOrders.length === 0 ? (
@@ -540,7 +624,24 @@ export default function DashboardAdmin() {
             </Card>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {pendingOrders.map((order) => (
+              {pendingOrders
+                .filter((order) => {
+                  if (!pendingSearch.trim()) return true;
+                  const q = pendingSearch.toLowerCase();
+                  const resi = (order.nomor_resi || '').toLowerCase();
+                  const custName = (order.customer?.nama || '').toLowerCase();
+                  const custPhone = (order.customer?.no_hp || '').toLowerCase();
+                  const desa = (order.alamat_tujuan || '').toLowerCase();
+                  const deskripsi = (order.deskripsi_barang || '').toLowerCase();
+                  return (
+                    resi.includes(q) ||
+                    custName.includes(q) ||
+                    custPhone.includes(q) ||
+                    desa.includes(q) ||
+                    deskripsi.includes(q)
+                  );
+                })
+                .map((order) => (
                 <Card key={order.id} padding="16px">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
@@ -792,6 +893,17 @@ export default function DashboardAdmin() {
             </Button>
           </div>
 
+          {/* Kolom Pencarian Mitra Kurir */}
+          {kurirList.length > 0 && (
+            <div style={{ marginBottom: '14px' }}>
+              <Input
+                placeholder="🔍 Cari nama kurir, HP, atau wilayah desa..."
+                value={kurirSearch}
+                onChange={(e) => setKurirSearch(e.target.value)}
+              />
+            </div>
+          )}
+
           {loadingKurir ? (
             <SkeletonLoader type="list" count={3} />
           ) : kurirList.length === 0 ? (
@@ -804,7 +916,16 @@ export default function DashboardAdmin() {
             </Card>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {kurirList.map((kurir) => (
+              {kurirList
+                .filter((kurir) => {
+                  if (!kurirSearch.trim()) return true;
+                  const q = kurirSearch.toLowerCase();
+                  const nama = (kurir.nama || '').toLowerCase();
+                  const noHp = (kurir.no_hp || '').toLowerCase();
+                  const alamat = (kurir.alamat || '').toLowerCase();
+                  return nama.includes(q) || noHp.includes(q) || alamat.includes(q);
+                })
+                .map((kurir) => (
                 <Card key={kurir.id} padding="16px">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>

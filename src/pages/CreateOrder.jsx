@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { villageService } from '../services/villageService';
@@ -15,6 +15,17 @@ import ConfirmationSheet from '../components/ConfirmationSheet';
 import { authService } from '../services/authService';
 import { supabase } from '../lib/supabaseClient';
 
+// Helper membaca draft formulir dari sessionStorage agar tidak hilang saat refresh
+const getSavedOrderDraft = () => {
+  try {
+    const raw = sessionStorage.getItem('draft_customer_order');
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.error(e);
+  }
+  return null;
+};
+
 export default function CreateOrder() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -22,18 +33,44 @@ export default function CreateOrder() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logoutSheetOpen, setLogoutSheetOpen] = useState(false);
 
+  // Ambil draft tersimpan jika ada (restore posisi sebelum refresh)
+  const savedDraft = useMemo(() => getSavedOrderDraft(), []);
+
   // State Form
   const [jenisBarang, setJenisBarang] = useState(
-    location.state?.service === 'titip_beli' ? 'titip_beli' : 'paket_ekspedisi'
+    location.state?.service === 'titip_beli'
+      ? 'titip_beli'
+      : savedDraft?.jenisBarang || 'paket_ekspedisi'
   );
-  const [jumlahBarang, setJumlahBarang] = useState(1);
-  const [nomorResi, setNomorResi] = useState('');
-  const [deskripsiBarang, setDeskripsiBarang] = useState('');
-  const [selectedDesaId, setSelectedDesaId] = useState('');
-  const [alamatDetail, setAlamatDetail] = useState(profile?.alamat || '');
-  const [noHp, setNoHp] = useState(profile?.no_hp || '');
-  const [metodePembayaran, setMetodePembayaran] = useState('COD'); // 'COD' | 'transfer'
+  const [jumlahBarang, setJumlahBarang] = useState(savedDraft?.jumlahBarang || 1);
+  const [nomorResi, setNomorResi] = useState(savedDraft?.nomorResi || '');
+  const [deskripsiBarang, setDeskripsiBarang] = useState(savedDraft?.deskripsiBarang || '');
+  const [selectedDesaId, setSelectedDesaId] = useState(savedDraft?.selectedDesaId || '');
+  const [alamatDetail, setAlamatDetail] = useState(savedDraft?.alamatDetail || profile?.alamat || '');
+  const [noHp, setNoHp] = useState(savedDraft?.noHp || profile?.no_hp || '');
+  const [metodePembayaran, setMetodePembayaran] = useState(savedDraft?.metodePembayaran || 'COD'); // 'COD' | 'transfer'
   const [copiedText, setCopiedText] = useState('');
+
+  // Simpan draft otomatis ke sessionStorage saat ada ketikan / perubahan pilihan
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        'draft_customer_order',
+        JSON.stringify({
+          jenisBarang,
+          jumlahBarang,
+          nomorResi,
+          deskripsiBarang,
+          selectedDesaId,
+          alamatDetail,
+          noHp,
+          metodePembayaran,
+        })
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  }, [jenisBarang, jumlahBarang, nomorResi, deskripsiBarang, selectedDesaId, alamatDetail, noHp, metodePembayaran]);
 
   // Data Desa
   const [desaList, setDesaList] = useState([]);
@@ -148,6 +185,13 @@ export default function CreateOrder() {
         alamatTujuan: fullAddress,
       });
 
+      // Bersihkan draft tersimpan karena order sudah berhasil dibuat
+      try {
+        sessionStorage.removeItem('draft_customer_order');
+      } catch (e) {
+        console.error(e);
+      }
+
       setSheetType('success');
       setSheetMessage('Order berhasil dibuat! Pesanan Anda sedang menunggu konfirmasi admin.');
       setSheetOpen(true);
@@ -163,6 +207,11 @@ export default function CreateOrder() {
   const handleSheetClose = () => {
     setSheetOpen(false);
     if (sheetType === 'success') {
+      try {
+        sessionStorage.removeItem('draft_customer_order');
+      } catch (e) {
+        console.error(e);
+      }
       navigate('/riwayat-order');
     }
   };

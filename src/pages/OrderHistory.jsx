@@ -20,6 +20,17 @@ import {
   checkReturnEligibility,
 } from '../utils/formatters';
 
+// Membaca preferensi filter tersimpan dari sessionStorage (agar posisi filter tetap sama saat refresh)
+const getSavedHistoryFilters = () => {
+  try {
+    const raw = sessionStorage.getItem('customer_history_filters');
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.error(e);
+  }
+  return null;
+};
+
 export default function OrderHistory() {
   const navigate = useNavigate();
   const { profile } = useAuth();
@@ -29,18 +40,46 @@ export default function OrderHistory() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Ambil data filter terakhir yang disimpan di sessionStorage
+  const savedFilters = useMemo(() => getSavedHistoryFilters(), []);
+
   // Quick Tab Filter (Skeuomorphic Segmented Pill)
-  const [filterTab, setFilterTab] = useState('semua'); // 'semua' | 'aktif' | 'selesai' | 'retur'
+  const [filterTab, setFilterTab] = useState(savedFilters?.filterTab || 'semua'); // 'semua' | 'aktif' | 'selesai' | 'retur'
 
   // Advanced Filter Drawer State (Slide BottomSheet)
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
-  const [filterTimeMode, setFilterTimeMode] = useState('semua'); // 'semua' | 'harian' | 'bulanan' | 'tahunan'
-  const [selectedDate, setSelectedDate] = useState(''); // YYYY-MM-DD
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); // 1-12
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear()); // e.g. 2026
-  const [filterStatus, setFilterStatus] = useState('semua'); // 'semua' | 'proses' | 'terkirim' | 'retur'
-  const [filterService, setFilterService] = useState('semua'); // 'semua' | 'paket_ekspedisi' | 'titip_beli'
-  const [searchKeyword, setSearchKeyword] = useState('');
+  const [filterTimeMode, setFilterTimeMode] = useState(savedFilters?.filterTimeMode || 'semua'); // 'semua' | 'harian' | 'bulanan' | 'tahunan'
+  const [selectedDate, setSelectedDate] = useState(savedFilters?.selectedDate || ''); // YYYY-MM-DD
+  const [selectedMonth, setSelectedMonth] = useState(
+    savedFilters?.selectedMonth !== undefined ? savedFilters.selectedMonth : new Date().getMonth() + 1
+  ); // 1-12
+  const [selectedYear, setSelectedYear] = useState(
+    savedFilters?.selectedYear !== undefined ? savedFilters.selectedYear : new Date().getFullYear()
+  ); // e.g. 2026
+  const [filterStatus, setFilterStatus] = useState(savedFilters?.filterStatus || 'semua'); // 'semua' | 'proses' | 'terkirim' | 'retur'
+  const [filterService, setFilterService] = useState(savedFilters?.filterService || 'semua'); // 'semua' | 'paket_ekspedisi' | 'titip_beli'
+  const [searchKeyword, setSearchKeyword] = useState(savedFilters?.searchKeyword || '');
+
+  // Simpan otomatis semua posisi filter ke sessionStorage agar tidak hilang saat refresh / F5
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        'customer_history_filters',
+        JSON.stringify({
+          filterTab,
+          filterTimeMode,
+          selectedDate,
+          selectedMonth,
+          selectedYear,
+          filterStatus,
+          filterService,
+          searchKeyword,
+        })
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  }, [filterTab, filterTimeMode, selectedDate, selectedMonth, selectedYear, filterStatus, filterService, searchKeyword]);
 
   // Detail Order Modal State
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -87,6 +126,7 @@ export default function OrderHistory() {
 
   // Reset semua filter
   const handleResetFilters = () => {
+    setFilterTab('semua');
     setFilterTimeMode('semua');
     setSelectedDate('');
     setSelectedMonth(new Date().getMonth() + 1);
@@ -95,6 +135,7 @@ export default function OrderHistory() {
     setFilterService('semua');
     setSearchKeyword('');
     setFilterDrawerOpen(false);
+    sessionStorage.removeItem('customer_history_filters');
   };
 
   // Helper shortcut waktu
