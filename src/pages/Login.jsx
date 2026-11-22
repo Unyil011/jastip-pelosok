@@ -323,8 +323,8 @@ export default function Login() {
                   <span style={{ color: 'var(--color-text-muted)' }}>Sandi: <code>Password123!</code></span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>👑 <strong>Admin:</strong> <code>admin_utama@jastip.com</code></span>
-                  <span style={{ color: 'var(--color-text-muted)' }}>Sandi: <code>ChangeMe123!</code></span>
+                  <span>👑 <strong>Admin Tunggal:</strong> <code>admin1@jastip.com</code></span>
+                  <span style={{ color: 'var(--color-text-muted)' }}>Sandi: <code>Admin111</code></span>
                 </div>
               </div>
             </div>
@@ -333,7 +333,7 @@ export default function Login() {
               <Input
                 label="Nomor HP atau Email Petugas / Admin"
                 type="text"
-                placeholder="Contoh: 081234567899 atau admin_utama@jastip.com"
+                placeholder="Contoh: 081234567899 atau admin1@jastip.com"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 required

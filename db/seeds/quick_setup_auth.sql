@@ -1,35 +1,30 @@
 -- ==============================================================================
 -- PANDUAN AKUN & PERBAIKAN AUTH SUPABASE (JASTIP PELOSOK)
 -- ==============================================================================
--- PENTING:
--- Di versi Supabase GoTrue modern, melakukan INSERT manual langsung ke `auth.users`
--- menyebabkan skema internal auth korup (Error: 500 Database error querying schema).
--- 
--- Akun resmi yang dibuat lewat API resmi Supabase Auth dan SUDAH AKTIF:
--- 1. AKUN KURIR:
+-- 1. AKUN ADMIN TUNGGAL (SATU-SATUNYA ADMIN):
+--    Email      : admin1@jastip.com
+--    Kata Sandi : Admin111
+--    Role       : admin (Approved)
+--
+-- 2. AKUN KURIR:
 --    Nomor HP   : 081234567899
 --    Kata Sandi : Password123!
 --    Role       : kurir (Approved)
---
--- 2. AKUN ADMIN:
---    Email      : admin_utama@jastip.com
---    Kata Sandi : ChangeMe123!
---    Role       : admin (Approved)
 -- ==============================================================================
 
--- JIKA INGIN MEMBERSIHKAN RECORD KORUP DI SQL EDITOR SUPABASE:
--- Jalankan query berikut di Supabase Dashboard -> SQL Editor:
+-- JIKA INGIN MEMASTIKAN TIDAK ADA ADMIN LAIN DI SQL EDITOR SUPABASE:
+-- Jalankan query berikut:
 
--- 1. Hapus entri auth lama yang korup akibat INSERT SQL manual:
-DELETE FROM auth.identities WHERE identity_data->>'email' IN ('admin@jastip.com', '081234567890@jastip.com');
-DELETE FROM auth.users WHERE email IN ('admin@jastip.com', '081234567890@jastip.com');
+-- 1. Turunkan role admin lain menjadi customer jika ada:
+UPDATE public.users 
+SET role = 'customer' 
+WHERE role = 'admin' AND id <> 'aa37eb1d-ff9f-4269-9788-eee0f28e16c6';
 
--- 2. Pastikan profil admin utama dan kurir aktif di public.users:
+-- 2. Pastikan akun admin1@jastip.com adalah admin aktif:
 INSERT INTO public.users (id, nama, no_hp, role, status_approval, alamat)
-VALUES 
-  ('27260dda-7c02-4154-b7e1-bbcccc92edef', 'Administrator Utama', '081122334455', 'admin', 'approved', 'Kantor Pusat Jastip Pelosok'),
-  ('af4a4f83-359b-43e8-96c2-aff60b2ee22f', 'Kurir Pelosok Demo', '081234567899', 'kurir', 'approved', 'Desa Naringgul')
+VALUES ('aa37eb1d-ff9f-4269-9788-eee0f28e16c6', 'Administrator', '081211112222', 'admin', 'approved', 'Kantor Pusat Jastip Pelosok')
 ON CONFLICT (id) DO UPDATE SET
+  role = 'admin',
   status_approval = 'approved';
 
 -- 3. Pastikan enum status retur terdaftar
