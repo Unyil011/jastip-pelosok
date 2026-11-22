@@ -73,6 +73,7 @@ export default function DeliveryMap({
 
         const isTerkirim = order.status_pengiriman === 'terkirim';
         const isOtw = order.status_pengiriman === 'dalam_perjalanan';
+        const isRetur = order.status_pengiriman === 'retur';
         const isSelected = selectedOrder?.id === order.id;
 
         // Tentukan warna & simbol pin berdasarkan status
@@ -85,6 +86,9 @@ export default function DeliveryMap({
         } else if (isOtw) {
           bgColor = '#2563eb'; // Biru untuk sedang jalan
           symbol = '🛵';
+        } else if (isRetur) {
+          bgColor = '#dc2626'; // Merah untuk retur
+          symbol = '↩';
         }
 
         const borderStyle = isSelected ? '3px solid #facc15' : '2px solid #ffffff';
@@ -144,8 +148,8 @@ export default function DeliveryMap({
           </div>
           <div style="padding: 6px 8px; background: #f1f5f9; border-radius: 6px; margin-bottom: 8px;">
             <div style="font-weight: 700; color: #334155;">📦 ${order.deskripsi_barang || 'Paket Titipan'}</div>
-            <div style="color: ${order.metode_pembayaran === 'COD' ? '#dc2626' : '#16a34a'}; font-weight: 700; margin-top: 2px;">
-              ${order.metode_pembayaran === 'COD' ? `💵 COD: Rp ${(order.ongkir_patokan || 0).toLocaleString('id-ID')}` : '🏦 Transfer Lunas'}
+            <div style="color: ${order.status_pengiriman === 'retur' ? '#dc2626' : order.metode_pembayaran === 'COD' ? '#dc2626' : '#16a34a'}; font-weight: 700; margin-top: 2px;">
+              ${order.status_pengiriman === 'retur' ? `↩️ RETUR (Ongkir: Rp ${(order.ongkir_diterima || order.ongkir_patokan || 0).toLocaleString('id-ID')})` : order.metode_pembayaran === 'COD' ? `💵 COD: Rp ${(order.ongkir_patokan || 0).toLocaleString('id-ID')}` : '🏦 Transfer Lunas'}
             </div>
           </div>
           <div style="display: flex; gap: 6px;">
@@ -323,6 +327,10 @@ export default function DeliveryMap({
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: '#16a34a' }} />
           <span>Terkirim</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: '#dc2626' }} />
+          <span>Retur (Batal/Ongkir)</span>
         </div>
         {courierLocation && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>

@@ -122,7 +122,11 @@ export default function DashboardCustomer() {
         if (profile?.id) {
           const orders = await orderService.getOrdersByCustomerId(profile.id);
           const active = orders.find(
-            (o) => o.status_pengiriman !== 'sampai_tujuan' && o.status_konfirmasi !== 'ditolak'
+            (o) =>
+              o.status_pengiriman !== 'sampai_tujuan' &&
+              o.status_pengiriman !== 'terkirim' &&
+              o.status_pengiriman !== 'retur' &&
+              o.status_konfirmasi !== 'ditolak'
           );
           setActiveOrder(active || null);
           populateFormFromProfile(profile, list);

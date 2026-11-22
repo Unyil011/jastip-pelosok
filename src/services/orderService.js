@@ -157,7 +157,7 @@ export const orderService = {
   },
 
   /**
-   * Kurir: Ambil Order Aktif di Jalur Kurir (status 'diterima_hub', 'dalam_perjalanan', atau 'terkirim')
+   * Kurir: Ambil Order Aktif di Jalur Kurir (status 'diterima_hub', 'dalam_perjalanan', 'terkirim', atau 'retur')
    * Termasuk koordinat GPS rumah customer untuk navigasi peta multi-drop
    */
   async getOrdersForKurir(jalurId) {
@@ -165,7 +165,7 @@ export const orderService = {
       .from('orders')
       .select('*, customer:customer_id (nama, no_hp, alamat, latitude, longitude), jalur:jalur_id (nama_jalur)')
       .eq('status_konfirmasi', 'dikonfirmasi')
-      .in('status_pengiriman', ['diterima_hub', 'dalam_perjalanan', 'terkirim'])
+      .in('status_pengiriman', ['diterima_hub', 'dalam_perjalanan', 'terkirim', 'retur'])
       .order('created_at', { ascending: true });
 
     if (jalurId) {
@@ -175,5 +175,51 @@ export const orderService = {
     const { data, error } = await query;
     if (error) throw error;
     return data || [];
+  },
+
+  /**
+   * Kurir: Proses Retur Paket
+   * Jika barang diretur (ditolak customer / alamat tak ketemu / barang rusak),
+   * kurir tetap berhak menerima uang ongkos kirim atas jerih payah perjalanan pelosok.
+   * Nilai COD barang dibatalkan (0) dan hanya ongkir yang dicatat.
+   */
+  async processReturnOrder(orderId, {
+    kurirId,
+    alasanRetur,
+    catatanRetur,
+    ongkirDiterima = 0,
+    currentDeskripsi = '',
+  }) {
+    const returTag = `[RETUR - ${alasanRetur || 'Dibatalkan'}${catatanRetur ? `: ${catatanRetur}` : ''}]`;
+    const updatedDeskripsi = currentDeskripsi
+      ? `${currentDeskripsi}\n${returTag}`
+      : returTag;
+
+    const numericOngkir = parseFloat(ongkirDiterima) || 0;
+
+    const updates = {
+      status_pengiriman: 'retur',
+      kurir_id: kurirId,
+      ongkir_diterima: numericOngkir,
+      status_pembayaran: numericOngkir > 0 ? 'lunas' : 'belum_lunas',
+      deskripsi_barang: updatedDeskripsi,
+    };
+
+    const { data, error } = await supabase
+      .from('orders')
+      .update(updates)
+      .eq('id', orderId)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.message?.includes('delivery_status')) {
+        throw new Error(
+          "Tipe enum database belum diperbarui. Harap jalankan file 'db/seeds/add_retur_status.sql' di Supabase SQL Editor untuk mengaktifkan status retur."
+        );
+      }
+      throw error;
+    }
+    return data;
   },
 };

@@ -46,10 +46,14 @@ export default function OrderHistory() {
   // Filter order berdasarkan tab aktif
   const filteredOrders = orders.filter((order) => {
     if (filterTab === 'aktif') {
-      return order.status_pengiriman !== 'terkirim' && order.status_konfirmasi !== 'ditolak';
+      return (
+        order.status_pengiriman !== 'terkirim' &&
+        order.status_pengiriman !== 'retur' &&
+        order.status_konfirmasi !== 'ditolak'
+      );
     }
     if (filterTab === 'selesai') {
-      return order.status_pengiriman === 'terkirim';
+      return order.status_pengiriman === 'terkirim' || order.status_pengiriman === 'retur';
     }
     return true;
   });

@@ -44,6 +44,35 @@ export function phoneToSyntheticEmail(phone) {
 }
 
 /**
+ * Cek apakah string tanggal jatuh pada hari ini
+ */
+export function isDateToday(dateString) {
+  if (!dateString) return false;
+  const target = new Date(dateString);
+  const now = new Date();
+  return (
+    target.getFullYear() === now.getFullYear() &&
+    target.getMonth() === now.getMonth() &&
+    target.getDate() === now.getDate()
+  );
+}
+
+/**
+ * Cek apakah string tanggal jatuh pada hari kemarin
+ */
+export function isDateYesterday(dateString) {
+  if (!dateString) return false;
+  const target = new Date(dateString);
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  return (
+    target.getFullYear() === yesterday.getFullYear() &&
+    target.getMonth() === yesterday.getMonth() &&
+    target.getDate() === yesterday.getDate()
+  );
+}
+
+/**
  * Helper label dan warna badge untuk status pengiriman
  */
 export function getDeliveryStatusMeta(status) {
@@ -56,6 +85,8 @@ export function getDeliveryStatusMeta(status) {
       return { label: 'Dalam Perjalanan', variant: 'primary' };
     case 'terkirim':
       return { label: 'Terkirim', variant: 'success' };
+    case 'retur':
+      return { label: 'Diretur (Ongkir Saja)', variant: 'danger' };
     default:
       return { label: status || 'Pending', variant: 'neutral' };
   }
