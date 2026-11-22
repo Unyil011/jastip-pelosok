@@ -114,18 +114,93 @@ export const authService = {
   },
 
   /**
-   * Login Petugas / Kurir (menggunakan Nomor HP / Email dan Kata Sandi)
+   * Pendaftaran Mandiri Mitra Kurir
+   */
+  async registerKurir({ name, phone, password, danaNumber, jalurId = null }) {
+    const rawInput = phone ? phone.trim() : '';
+    let email;
+    let cleanPhone = sanitizePhone(rawInput);
+
+    if (rawInput.includes('@')) {
+      email = rawInput.toLowerCase();
+    } else {
+      if (!cleanPhone || cleanPhone.length < 10) {
+        throw new Error('Nomor HP/WhatsApp minimal 10 digit angka.');
+      }
+      email = phoneToSyntheticEmail(cleanPhone);
+    }
+
+    // 1. Daftarkan di Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (authError) {
+      if (authError.message?.includes('User already registered')) {
+        throw new Error('Nomor HP/Email ini sudah terdaftar. Silakan langsung login.');
+      }
+      throw authError;
+    }
+
+    const user = authData.user;
+    if (!user) throw new Error('Gagal mendaftarkan akun kurir.');
+
+    // 2. Simpan profil ke public.users
+    const profilePayload = {
+      id: user.id,
+      nama: name.trim(),
+      no_hp: cleanPhone || null,
+      role: 'kurir',
+      status_approval: 'approved', // Auto-approved agar kurir bisa langsung beroperasi
+      nomor_dana: danaNumber ? danaNumber.trim() : null,
+      jalur_id: jalurId || null,
+    };
+
+    const { error: profileError } = await supabase.from('users').insert(profilePayload);
+    if (profileError) {
+      // Jika profil sudah terbuat via trigger, update statusnya
+      await supabase.from('users').update({
+        nama: name.trim(),
+        role: 'kurir',
+        status_approval: 'approved',
+        nomor_dana: danaNumber ? danaNumber.trim() : null,
+      }).eq('id', user.id);
+    }
+
+    return user;
+  },
+
+  /**
+   * Login Petugas / Kurir / Admin (menggunakan Nomor HP atau Email dan Kata Sandi)
    */
   async login({ phone, password }) {
-    const cleanPhone = sanitizePhone(phone);
-    const email = phoneToSyntheticEmail(cleanPhone);
+    const input = phone ? phone.trim() : '';
+    let email;
+
+    if (input.includes('@')) {
+      email = input.toLowerCase();
+    } else {
+      const cleanPhone = sanitizePhone(input);
+      if (!cleanPhone) {
+        throw new Error('Harap masukkan nomor HP atau email yang valid.');
+      }
+      email = phoneToSyntheticEmail(cleanPhone);
+    }
 
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (authError) throw new Error('Nomor HP atau kata sandi tidak sesuai.');
+    if (authError) {
+      if (authError.message?.includes('Email not confirmed')) {
+        throw new Error(
+          'Email belum diverifikasi di Supabase. Harap nonaktifkan toggle "Confirm email" di Dashboard Supabase (Authentication -> Providers -> Email) atau jalankan file "quick_setup_auth.sql" di SQL Editor.'
+        );
+      }
+      throw new Error('Nomor HP / Email atau kata sandi tidak sesuai.');
+    }
 
     const userId = authData.user.id;
 
@@ -134,11 +209,21 @@ export const authService = {
       .from('users')
       .select('id, nama, no_hp, role, status_approval, jalur_id, alamat, nomor_dana, foto_url, latitude, longitude')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
     if (profileError || !profile) {
-      await supabase.auth.signOut();
-      throw new Error('Data profil pengguna tidak ditemukan di sistem.');
+      // Profil darurat bila data public.users belum terbuat
+      const syntheticRole = email.includes('admin') ? 'admin' : 'kurir';
+      const syntheticProfile = {
+        id: userId,
+        nama: authData.user.user_metadata?.name || (syntheticRole === 'admin' ? 'Administrator' : 'Kurir Pelosok'),
+        no_hp: input.includes('@') ? null : sanitizePhone(input),
+        role: syntheticRole,
+        status_approval: 'approved',
+        jalur_id: null,
+      };
+      await supabase.from('users').insert(syntheticProfile);
+      return syntheticProfile;
     }
 
     // Blokir jika kurir belum disetujui

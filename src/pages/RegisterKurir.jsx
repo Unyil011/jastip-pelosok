@@ -27,7 +27,7 @@ export default function RegisterKurir() {
     try {
       await authService.registerKurir({ name, phone, password, danaNumber });
       setSheetType('success');
-      setSheetMessage('Pendaftaran mitra kurir berhasil dikirim! Akun Anda sedang menunggu persetujuan admin. Anda belum dapat login sebelum disetujui.');
+      setSheetMessage('Pendaftaran mitra kurir berhasil! Akun Anda telah siap dan dapat langsung digunakan untuk login.');
       setSheetOpen(true);
     } catch (err) {
       setSheetType('error');

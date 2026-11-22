@@ -311,9 +311,9 @@ export default function Login() {
 
             <form onSubmit={handleStaffLogin}>
               <Input
-                label="Nomor WhatsApp / HP Petugas"
-                type="tel"
-                placeholder="Contoh: 081234567890"
+                label="Nomor HP atau Email Petugas / Admin"
+                type="text"
+                placeholder="Contoh: 081234567890 atau admin@jastip.com"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 required
@@ -330,8 +330,36 @@ export default function Login() {
 
               <div style={{ marginTop: '16px' }}>
                 <Button type="submit" loading={staffLoading}>
-                  Masuk sebagai Petugas
+                  Masuk sebagai Petugas / Admin
                 </Button>
+              </div>
+
+              <div
+                style={{
+                  marginTop: '16px',
+                  paddingTop: '12px',
+                  borderTop: '1px solid rgba(82, 99, 90, 0.12)',
+                  textAlign: 'center',
+                  fontSize: '12.5px',
+                  color: 'var(--color-text-muted)',
+                }}
+              >
+                Ingin bergabung mengantar paket?{' '}
+                <button
+                  type="button"
+                  onClick={() => navigate('/register-kurir')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--color-primary-dark)',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: 0,
+                  }}
+                >
+                  Daftar Akun Kurir Baru →
+                </button>
               </div>
             </form>
           </div>
