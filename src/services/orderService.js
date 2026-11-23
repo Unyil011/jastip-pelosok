@@ -109,6 +109,153 @@ export const orderService = {
   },
 
   /**
+   * Kurir: Daftarkan Paket Belum Terdaftar Langsung dari Hasil Scan Barcode Lapangan
+   */
+  async createOrderByKurir({
+    kurirId,
+    nomorResi,
+    ekspedisi = 'J&T Express',
+    namaPenerima,
+    noHp,
+    desaId,
+    desaNama,
+    detailAlamat,
+    metodePembayaran = 'COD',
+    hargaBarang = 0,
+    ongkirKurir = 10000,
+  }) {
+    const cleanResi = (nomorResi || '').trim();
+    const cleanHp = (noHp || '').trim().replace(/[^0-9]/g, '');
+    const cleanNama = (namaPenerima || '').trim() || 'Penerima Paket';
+    const cleanDesa = (desaNama || '').trim();
+    const fullAlamat = detailAlamat ? `${detailAlamat}, Desa ${cleanDesa}` : `Desa ${cleanDesa}`;
+
+    // 1. Cari atau buat customer sementara di public.users
+    let targetCustomerId = null;
+    if (cleanHp) {
+      try {
+        const { data: existingUser } = await supabase
+          .from('users')
+          .select('id')
+          .eq('no_hp', cleanHp)
+          .maybeSingle();
+
+        if (existingUser?.id) {
+          targetCustomerId = existingUser.id;
+        }
+      } catch (e) {
+        console.warn('Gagal lookup user by hp:', e);
+      }
+    }
+
+    // Jika customer belum pernah terdaftar, buat profil user customer otomatis
+    if (!targetCustomerId) {
+      try {
+        const dummyUuid = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null;
+        const insertPayload = {
+          nama: cleanNama,
+          no_hp: cleanHp || `0800${Date.now().toString().slice(-8)}`,
+          alamat: fullAlamat,
+          role: 'customer',
+          status_approval: 'approved',
+        };
+        if (dummyUuid) insertPayload.id = dummyUuid;
+
+        const { data: newUser, error: userErr } = await supabase
+          .from('users')
+          .insert(insertPayload)
+          .select('id')
+          .single();
+
+        if (!userErr && newUser) {
+          targetCustomerId = newUser.id;
+        }
+      } catch (err) {
+        console.warn('Gagal buat user baru, gunakan kurirId sebagai fallback customer_id:', err);
+      }
+    }
+
+    // Fallback jika tidak bisa buat user
+    if (!targetCustomerId) {
+      targetCustomerId = kurirId || 'af4a4f83-359b-43e8-96c2-aff60b2ee22f';
+    }
+
+    // 2. Tentukan jalur_id
+    let targetJalurId = '11111111-1111-1111-1111-111111111111';
+    if (desaId) {
+      try {
+        const { data: dData } = await supabase.from('desa').select('jalur_id').eq('id', desaId).maybeSingle();
+        if (dData?.jalur_id) targetJalurId = dData.jalur_id;
+      } catch (e) {
+        console.warn('Gagal ambil jalur dari desaId:', e);
+      }
+    }
+
+    // 3. Susun deskripsi lengkap
+    let desc = `[1 Paket] ${ekspedisi}`;
+    const numHarga = parseFloat(hargaBarang) || 0;
+    const numOngkir = parseFloat(ongkirKurir) || 10000;
+    if (numHarga > 0) {
+      desc += ` [COD Barang: Rp ${numHarga.toLocaleString('id-ID')}]`;
+    }
+    desc += ` [Ongkir: Rp ${numOngkir.toLocaleString('id-ID')}]`;
+
+    const newOrder = {
+      customer_id: targetCustomerId,
+      jalur_id: targetJalurId,
+      kurir_id: kurirId,
+      jenis_barang: 'paket_ekspedisi',
+      nomor_resi: cleanResi,
+      deskripsi_barang: desc,
+      dibuat_oleh: 'kurir',
+      status_konfirmasi: 'dikonfirmasi',
+      metode_pembayaran: metodePembayaran,
+      ongkir_patokan: numOngkir,
+      ongkir_diterima: 0,
+      status_pembayaran: 'belum_lunas',
+      status_pengiriman: 'dalam_perjalanan', // Langsung masuk rute antaran kurir
+      alamat_tujuan: fullAlamat,
+    };
+
+    const { data, error } = await supabase.from('orders').insert(newOrder).select().single();
+    if (error) throw error;
+    this.notifyOrderCreated(data);
+    return data;
+  },
+
+  /**
+   * Kurir: Tunda Antar Paket ke Besok Hari (Cuaca ekstrem / jalan longsor / penerima minta besok)
+   */
+  async postponeOrderToTomorrow(orderId, {
+    kurirId,
+    alasanTunda,
+    catatanTunda,
+    currentDeskripsi = '',
+  }) {
+    const tundaTag = `[TUNDA BESOK - ${alasanTunda || 'Kendala Lapangan'}${catatanTunda ? `: ${catatanTunda}` : ''}]`;
+    const updatedDeskripsi = currentDeskripsi
+      ? `${currentDeskripsi}\n${tundaTag}`
+      : tundaTag;
+
+    const updates = {
+      status_pengiriman: 'diterima_hub', // Kembalikan ke status siap antar untuk besok
+      kurir_id: kurirId,
+      deskripsi_barang: updatedDeskripsi,
+    };
+
+    const { data, error } = await supabase
+      .from('orders')
+      .update(updates)
+      .eq('id', orderId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    this.notifyOrderCreated(data);
+    return data;
+  },
+
+  /**
    * Ambil Riwayat Order milik Customer saat ini
    */
   async getOrdersByCustomerId(customerId) {

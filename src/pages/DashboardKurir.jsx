@@ -50,6 +50,24 @@ export default function DashboardKurir() {
   const [scanOngkirKurir, setScanOngkirKurir] = useState('10000');
   const kurirScannerRef = useRef(null);
 
+  // State Form Paket Belum Terdaftar (Unregistered Package Workflow)
+  const [unregEkspedisi, setUnregEkspedisi] = useState('J&T Express');
+  const [unregNama, setUnregNama] = useState('');
+  const [unregHp, setUnregHp] = useState('');
+  const [unregDesaId, setUnregDesaId] = useState('');
+  const [unregDetailAlamat, setUnregDetailAlamat] = useState('');
+  const [unregMetode, setUnregMetode] = useState('COD');
+  const [unregHargaBarang, setUnregHargaBarang] = useState('');
+  const [unregOngkirKurir, setUnregOngkirKurir] = useState('10000');
+  const [unregSaving, setUnregSaving] = useState(false);
+
+  // State Tunda Antar Besok (Postpone Delivery Workflow)
+  const [tundaSheetOpen, setTundaSheetOpen] = useState(false);
+  const [tundaOrder, setTundaOrder] = useState(null);
+  const [tundaAlasan, setTundaAlasan] = useState('🌧️ Cuaca Ekstrem / Hujan Lebat di Pelosok');
+  const [tundaCatatan, setTundaCatatan] = useState('');
+  const [tundaLoading, setTundaLoading] = useState(false);
+
   // State Kartu Diperbesar / Diperkecil (Tersimpan di localStorage, tidak berubah saat refresh)
   const [expandedCards, setExpandedCards] = useState(() => {
     try {
@@ -633,7 +651,19 @@ export default function DashboardKurir() {
     });
   }, [orders, dateFilter]);
 
-  // Metrik Statistik Harian (Berdasarkan filter tanggal aktif)
+  // Helper Ekstraksi Nilai Barang COD dari Catatan Paket
+  const getCodBarangAmount = (order) => {
+    if (order?.metode_pembayaran !== 'COD') return 0;
+    const desc = order?.deskripsi_barang || '';
+    const match = desc.match(/COD Barang:\s*Rp\s*([0-9.,]+)/i) || desc.match(/COD:\s*Rp\s*([0-9.,]+)/i);
+    if (match) {
+      const cleanNum = match[1].replace(/\./g, '').replace(/,/g, '');
+      return parseFloat(cleanNum) || 0;
+    }
+    return 0;
+  };
+
+  // Metrik Statistik Harian & Transparansi Arus Kas (Berdasarkan filter tanggal aktif)
   const stats = useMemo(() => {
     const list = ordersInDateRange;
     const total = list.length;
@@ -642,16 +672,36 @@ export default function DashboardKurir() {
     const siapAntar = list.filter((o) => o.status_pengiriman === 'diterima_hub').length;
     const retur = list.filter((o) => o.status_pengiriman === 'retur').length;
 
-    // Total Kas Ongkir Masuk:
-    // Ongkir dari paket terkirim + ongkir dari paket retur (karena kurir tetap menerima ongkir atas jerih payah rute)
-    const totalOngkirKas = list.reduce((acc, curr) => {
+    // 1. Hak Bersih Kurir (Ongkir dari paket terkirim + paket retur)
+    const totalHakOngkir = list.reduce((acc, curr) => {
       if (curr.status_pengiriman === 'terkirim' || curr.status_pengiriman === 'retur') {
         return acc + (parseFloat(curr.ongkir_diterima) || parseFloat(curr.ongkir_patokan) || 0);
       }
       return acc;
     }, 0);
 
-    return { total, terkirim, otw, siapAntar, retur, totalOngkirKas };
+    // 2. Setoran Uang Barang COD ke Hub (Hanya dari paket yang sukses terkirim)
+    const totalSetoranBarang = list.reduce((acc, curr) => {
+      if (curr.status_pengiriman === 'terkirim' && curr.metode_pembayaran === 'COD') {
+        return acc + getCodBarangAmount(curr);
+      }
+      return acc;
+    }, 0);
+
+    // 3. Total Kas Fisik di Tangan Kurir = Hak Ongkir Bersih + Setoran Uang Barang
+    const totalKasDiTangan = totalHakOngkir + totalSetoranBarang;
+
+    return {
+      total,
+      terkirim,
+      otw,
+      siapAntar,
+      retur,
+      totalOngkirKas: totalHakOngkir,
+      totalHakOngkir,
+      totalSetoranBarang,
+      totalKasDiTangan,
+    };
   }, [ordersInDateRange]);
 
   // Filter Data Akhir (Tanggal + Status Tab + Search Query)
@@ -813,6 +863,128 @@ export default function DashboardKurir() {
     setReturAlasan('Penerima Menolak Bayar / Batal');
     setReturCatatan('');
     setReturSheetOpen(true);
+  };
+
+  // ---------------------------------------------------------
+  // AKSI: TUNDA PENGANTARAN KE BESOK HARI (POSTPONE DELIVERY)
+  // ---------------------------------------------------------
+  const openTundaDialog = (order) => {
+    setTundaOrder(order);
+    setTundaAlasan('🌧️ Cuaca Ekstrem / Hujan Lebat di Pelosok');
+    setTundaCatatan('');
+    setTundaSheetOpen(true);
+  };
+
+  const handleConfirmTunda = async () => {
+    if (!tundaOrder) return;
+    setTundaLoading(true);
+    try {
+      await orderService.postponeOrderToTomorrow(tundaOrder.id, {
+        kurirId: profile?.id,
+        alasanTunda,
+        catatanTunda,
+        currentDeskripsi: tundaOrder.deskripsi_barang,
+      });
+
+      setTundaSheetOpen(false);
+      setTundaOrder(null);
+      await loadKurirOrders();
+      setFeedbackSheet({
+        open: true,
+        title: 'Pengantaran Ditunda ke Besok Hari ⏳',
+        message: 'Paket berhasil disimpan dan dipindahkan ke status "Siap Antar" untuk jadwal pengantaran esok hari.',
+      });
+    } catch (err) {
+      setFeedbackSheet({
+        open: true,
+        title: 'Gagal Menunda Paket',
+        message: err.message || 'Terjadi kesalahan saat memproses penundaan paket.',
+      });
+    } finally {
+      setTundaLoading(false);
+    }
+  };
+
+  // ---------------------------------------------------------
+  // AKSI: PENDAFTARAN PAKET BELUM TERDAFTAR (UNREGISTERED WORKFLOW)
+  // ---------------------------------------------------------
+  const handleSaveUnregisteredOrder = async (e) => {
+    e?.preventDefault();
+    if (!unregNama.trim()) {
+      setFeedbackSheet({
+        open: true,
+        title: 'Nama Penerima Wajib Diisi',
+        message: 'Silakan isi nama penerima yang tertera pada label fisik paket.',
+      });
+      return;
+    }
+
+    const selectedDesa = desaList.find((d) => d.id === unregDesaId) || desaList[0];
+    const desaNama = selectedDesa ? selectedDesa.nama_desa : (profile?.alamat || 'Pelosok');
+
+    setUnregSaving(true);
+    try {
+      const created = await orderService.createOrderByKurir({
+        kurirId: profile?.id,
+        nomorResi: scannedResiInput,
+        ekspedisi: unregEkspedisi,
+        namaPenerima: unregNama,
+        noHp: unregHp,
+        desaId: selectedDesa?.id || unregDesaId,
+        desaNama: desaNama,
+        detailAlamat: unregDetailAlamat,
+        metodePembayaran: unregMetode,
+        hargaBarang: unregHargaBarang,
+        ongkirKurir: unregOngkirKurir,
+      });
+
+      playScanBeep();
+      setFeedbackSheet({
+        open: true,
+        title: 'Paket Berhasil Didaftarkan! 🛵',
+        message: `Paket resi ${scannedResiInput || created?.nomor_resi || ''} atas nama ${unregNama} berhasil dibuat dan langsung masuk antaran aktif "Dalam Perjalanan".`,
+      });
+
+      // Reset form
+      setUnregNama('');
+      setUnregHp('');
+      setUnregDetailAlamat('');
+      setUnregHargaBarang('');
+      setUnregOngkirKurir('10000');
+      handleCloseScanner();
+      await loadKurirOrders();
+    } catch (err) {
+      setFeedbackSheet({
+        open: true,
+        title: 'Gagal Mendaftarkan Paket',
+        message: err.message || 'Terjadi kesalahan saat mendaftarkan paket.',
+      });
+    } finally {
+      setUnregSaving(false);
+    }
+  };
+
+  const handleChatUnregWa = () => {
+    if (!unregHp.trim()) {
+      setFeedbackSheet({
+        open: true,
+        title: 'Nomor WhatsApp Belum Diisi',
+        message: 'Masukkan nomor WhatsApp penerima terlebih dahulu untuk menghubungi customer.',
+      });
+      return;
+    }
+    const cleanHp = unregHp.trim().replace(/^0/, '62').replace(/[^0-9]/g, '');
+    const selectedDesa = desaList.find((d) => d.id === unregDesaId);
+    const desaNama = selectedDesa ? selectedDesa.nama_desa : (profile?.alamat || 'Pelosok');
+    const kurirName = profile?.nama ? `saya ${profile.nama} (Kurir Pelosok Naringgul)` : 'saya kurir yang bertugas';
+    const tagihanText =
+      unregMetode === 'COD' && parseFloat(unregHargaBarang) > 0
+        ? `Total COD Barang: Rp ${parseFloat(unregHargaBarang).toLocaleString('id-ID')} + Ongkir Kurir: Rp ${(parseFloat(unregOngkirKurir) || 10000).toLocaleString('id-ID')}`
+        : `Ongkir Kurir: Rp ${(parseFloat(unregOngkirKurir) || 10000).toLocaleString('id-ID')} (Barang sudah lunas/transfer)`;
+
+    const msg = `Halo Kak ${unregNama || ''} 👋\n${kurirName}.\n\nSaat ini ada paket ekspedisi *${unregEkspedisi}* milik Anda di hub kami dengan:\n🔖 No. Resi: *${scannedResiInput || '-'}*\n📍 Tujuan: ${unregDetailAlamat ? `${unregDetailAlamat}, ` : ''}Desa ${desaNama}\n💰 ${tagihanText}\n\nApakah paket ini bersedia diantar ke rumah Kakak hari ini? Mohon konfirmasinya ya Kak. Terima kasih! 🙏`;
+
+    window.open(`https://wa.me/${cleanHp}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   return (
@@ -1092,27 +1264,67 @@ export default function DashboardKurir() {
               </div>
             </div>
 
-            {/* Kas Ongkir yang Diterima Kurir (Solusi Hak Ongkir Kurir) */}
+            {/* Transparansi Arus Kas Kurir & Setoran Hub */}
             <div
               style={{
-                background: 'linear-gradient(90deg, #f0fdf4 0%, #e0f2fe 100%)',
-                border: '1px solid #86efac',
+                background: 'linear-gradient(135deg, #f8fafc 0%, #f0fdf4 100%)',
+                border: '1px solid #cbd5e1',
                 borderRadius: '8px',
-                padding: '8px 12px',
+                padding: '10px 12px',
                 display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                fontSize: '12px',
+                flexDirection: 'column',
+                gap: '8px',
               }}
             >
-              <div>
-                <span style={{ fontWeight: '700', color: '#166534' }}>💵 Kas Ongkir Terkumpul:</span>
-                <div style={{ fontSize: '10.5px', color: '#15803d' }}>
-                  (Termasuk ongkir dari paket terkirim & retur)
-                </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-dim)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  💰 Rincian Arus Kas Kurir
+                </span>
+                <span style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>
+                  Total Fisik: <b style={{ color: 'var(--color-text-main)', fontSize: '12px' }}>{formatRupiah(stats.totalKasDiTangan)}</b>
+                </span>
               </div>
-              <div style={{ fontSize: '15px', fontWeight: '900', color: '#166534' }}>
-                {formatRupiah(stats.totalOngkirKas)}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                {/* Hak Bersih Kurir (Ongkir) */}
+                <div
+                  style={{
+                    background: '#ecfdf5',
+                    border: '1px solid #a7f3d0',
+                    borderRadius: '7px',
+                    padding: '8px 10px',
+                  }}
+                >
+                  <div style={{ fontSize: '10.5px', color: '#047857', fontWeight: '700' }}>
+                    💵 Hak Bersih Kurir
+                  </div>
+                  <div style={{ fontSize: '14.5px', fontWeight: '900', color: '#065f46', marginTop: '2px' }}>
+                    {formatRupiah(stats.totalHakOngkir)}
+                  </div>
+                  <div style={{ fontSize: '9.5px', color: '#059669', marginTop: '1px' }}>
+                    Ongkir terkirim + retur
+                  </div>
+                </div>
+
+                {/* Setoran Uang Barang ke Hub */}
+                <div
+                  style={{
+                    background: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    borderRadius: '7px',
+                    padding: '8px 10px',
+                  }}
+                >
+                  <div style={{ fontSize: '10.5px', color: '#1d4ed8', fontWeight: '700' }}>
+                    🏢 Setor ke Hub
+                  </div>
+                  <div style={{ fontSize: '14.5px', fontWeight: '900', color: '#1e40af', marginTop: '2px' }}>
+                    {formatRupiah(stats.totalSetoranBarang)}
+                  </div>
+                  <div style={{ fontSize: '9.5px', color: '#2563eb', marginTop: '1px' }}>
+                    Titipan COD barang
+                  </div>
+                </div>
               </div>
             </div>
           </Card>
@@ -1575,30 +1787,51 @@ export default function DashboardKurir() {
                         {/* Action Buttons Kurir */}
                         <div>
                           {isDiHub && (
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              <Button
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedOrder(order);
-                                  setConfirmMulaiSheet(true);
-                                }}
-                                style={{ flex: 1 }}
-                              >
-                                🚀 Mulai Antar Paket Ini
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => openReturDialog(order)}
-                                style={{ color: '#dc2626', borderColor: '#fca5a5' }}
-                              >
-                                ↩️ Retur
-                              </Button>
+                            <div>
+                              {(order.deskripsi_barang || '').includes('[TUNDA BESOK') && (
+                                <div
+                                  style={{
+                                    fontSize: '11px',
+                                    color: '#b45309',
+                                    background: '#fffbeb',
+                                    border: '1px solid #fde68a',
+                                    padding: '5px 8px',
+                                    borderRadius: '6px',
+                                    marginBottom: '8px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                  }}
+                                >
+                                  <span>⏳</span>
+                                  <span><b>Ditunda dari hari sebelumnya:</b> Siap untuk diantar kembali hari ini.</span>
+                                </div>
+                              )}
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedOrder(order);
+                                    setConfirmMulaiSheet(true);
+                                  }}
+                                  style={{ flex: 1 }}
+                                >
+                                  🚀 Mulai Antar Paket Ini
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openReturDialog(order)}
+                                  style={{ color: '#dc2626', borderColor: '#fca5a5' }}
+                                >
+                                  ↩️ Retur
+                                </Button>
+                              </div>
                             </div>
                           )}
 
                           {isOtw && (
-                            <div style={{ display: 'flex', gap: '8px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                               <Button
                                 size="sm"
                                 variant="primary"
@@ -1607,19 +1840,42 @@ export default function DashboardKurir() {
                                   setCodAmount(order.ongkir_patokan > 0 ? String(order.ongkir_patokan) : '');
                                   setSelesaiSheetOpen(true);
                                 }}
-                                style={{ flex: 2 }}
+                                style={{ width: '100%', height: '38px', fontSize: '13px', fontWeight: '800' }}
                               >
-                                ✅ Selesai Antar
+                                ✅ Selesai Antar (Sampai Tujuan)
                               </Button>
 
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => openReturDialog(order)}
-                                style={{ flex: 1, color: '#dc2626', borderColor: '#fca5a5' }}
-                              >
-                                ↩️ Retur Paket
-                              </Button>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openTundaDialog(order)}
+                                  style={{
+                                    flex: 1,
+                                    color: '#b45309',
+                                    borderColor: '#fde68a',
+                                    background: '#fffbeb',
+                                    fontWeight: '700',
+                                  }}
+                                >
+                                  ⏳ Tunda Besok
+                                </Button>
+
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openReturDialog(order)}
+                                  style={{
+                                    flex: 1,
+                                    color: '#dc2626',
+                                    borderColor: '#fca5a5',
+                                    background: '#fef2f2',
+                                    fontWeight: '700',
+                                  }}
+                                >
+                                  ↩️ Retur Paket
+                                </Button>
+                              </div>
                             </div>
                           )}
 
@@ -1864,6 +2120,115 @@ export default function DashboardKurir() {
         </div>
       </BottomSheet>
 
+      {/* Bottom Sheet Tunda Antar Besok */}
+      <BottomSheet
+        isOpen={tundaSheetOpen}
+        onClose={() => setTundaSheetOpen(false)}
+        title="⏳ Tunda Antar ke Besok Hari"
+      >
+        <div style={{ padding: '8px 0 16px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div
+            style={{
+              background: '#fffbeb',
+              border: '1px solid #fde68a',
+              borderRadius: 'var(--radius-md)',
+              padding: '12px',
+              color: '#92400e',
+              fontSize: '12.5px',
+              lineHeight: '1.45',
+            }}
+          >
+            <b>ℹ️ Kebijakan Penundaan Pengantaran:</b>
+            <div style={{ marginTop: '4px' }}>
+              Paket ini akan dipindahkan kembali ke status <b>"Siap Antar"</b> dengan catatan penundaan agar dapat Anda bawa kembali esok hari. Paket <b>TIDAK</b> dianggap gagal/retur.
+            </div>
+          </div>
+
+          {/* Rincian Paket */}
+          <Card padding="10px 12px" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
+            <div style={{ fontSize: '11.5px', color: 'var(--color-text-dim)' }}>Penerima:</div>
+            <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--color-text-main)' }}>
+              {tundaOrder?.customer?.nama || 'Penerima Paket'}
+            </div>
+            <div style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+              Resi: <b>{tundaOrder?.nomor_resi || '-'}</b> • {tundaOrder?.alamat_tujuan}
+            </div>
+          </Card>
+
+          {/* Pilihan Cepat Alasan Tunda */}
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '6px' }}>
+              Pilih Alasan Penundaan:
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {[
+                '🌧️ Cuaca Ekstrem / Hujan Lebat di Pelosok',
+                '🚧 Akses Jalan Longsor / Jembatan Putus',
+                '🏠 Penerima Sedang Tidak di Rumah (Minta Besok)',
+                '🌙 Hari Sudah Gelap / Medan Terlalu Rawan',
+                '✏️ Alasan Lainnya',
+              ].map((alasan) => (
+                <button
+                  key={alasan}
+                  type="button"
+                  onClick={() => setTundaAlasan(alasan)}
+                  style={{
+                    textAlign: 'left',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: tundaAlasan === alasan ? '700' : '500',
+                    border: tundaAlasan === alasan ? '2px solid #d97706' : '1px solid var(--color-border)',
+                    background: tundaAlasan === alasan ? '#fffbeb' : 'var(--color-bg-card)',
+                    color: tundaAlasan === alasan ? '#92400e' : 'var(--color-text-main)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {alasan}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Catatan Tambahan */}
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '4px' }}>
+              Catatan Tambahan (Opsional):
+            </label>
+            <input
+              type="text"
+              placeholder="Contoh: Sudah konfirmasi ke penerima via WA, diantar besok siang"
+              value={tundaCatatan}
+              onChange={(e) => setTundaCatatan(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-bg-input)',
+                fontSize: '12.5px',
+                color: 'var(--color-text-main)',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+            <Button variant="outline" onClick={() => setTundaSheetOpen(false)} style={{ flex: 1 }}>
+              Batal
+            </Button>
+            <Button
+              variant="primary"
+              loading={tundaLoading}
+              onClick={handleConfirmTunda}
+              style={{ flex: 2, background: '#d97706', borderColor: '#b45309', color: '#ffffff', fontWeight: '800' }}
+            >
+              ⏳ Simpan & Tunda Besok
+            </Button>
+          </div>
+        </div>
+      </BottomSheet>
+
       {/* Feedback Sheet */}
       <BottomSheet
         isOpen={feedbackSheet.open}
@@ -2006,23 +2371,348 @@ export default function DashboardKurir() {
             </div>
           )}
 
-          {/* Hasil: Resi Tidak Ditemukan */}
+          {/* Hasil: Resi Tidak Ditemukan -> Alur Pendaftaran Paket Belum Terdaftar */}
           {scanStatus === 'not_found' && (
-            <div
-              style={{
-                background: '#fffbeb',
-                border: '1px solid #f59e0b',
-                borderRadius: 'var(--radius-sm)',
-                padding: '12px 14px',
-                color: '#92400e',
-                fontSize: '13px',
-                lineHeight: '1.4',
-              }}
-            >
-              <b>❌ Nomor Resi Belum Terdaftar</b>
-              <p style={{ margin: '4px 0 0 0', fontSize: '12px' }}>
-                Paket dengan resi "{scannedResiInput}" belum pernah dibuat pesanannya oleh customer di aplikasi. Harap hubungi Admin Hub jika paket ini perlu didaftarkan manual.
-              </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div
+                style={{
+                  background: '#fffbeb',
+                  border: '1.5px solid #f59e0b',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '12px 14px',
+                  color: '#92400e',
+                  fontSize: '12.5px',
+                  lineHeight: '1.45',
+                }}
+              >
+                <div style={{ fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>📦</span>
+                  <span>RESI BELUM TERDAFTAR DI SISTEM</span>
+                </div>
+                <div style={{ marginTop: '4px' }}>
+                  Resi <b>"{scannedResiInput}"</b> belum dipesan customer melalui aplikasi. Anda dapat mencatat data dari label fisik paket di bawah ini agar langsung masuk antaran aktif Anda.
+                </div>
+              </div>
+
+              {/* Form Input Data Paket Fisik */}
+              <Card padding="14px 16px" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
+                <h4 style={{ fontSize: '13px', fontWeight: '800', color: 'var(--color-text-main)', margin: '0 0 10px 0' }}>
+                  📝 Catat Data Label Resi Fisik
+                </h4>
+
+                <form onSubmit={handleSaveUnregisteredOrder} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {/* Ekspedisi */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '4px' }}>
+                      Ekspedisi Asal:
+                    </label>
+                    <select
+                      value={unregEkspedisi}
+                      onChange={(e) => setUnregEkspedisi(e.target.value)}
+                      style={{
+                        width: '100%',
+                        height: '38px',
+                        padding: '0 10px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid var(--color-border)',
+                        background: 'var(--color-bg-input)',
+                        color: 'var(--color-text-main)',
+                        fontSize: '12.5px',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <option value="J&T Express">J&T Express</option>
+                      <option value="Shopee Xpress">Shopee Xpress (SPX)</option>
+                      <option value="JNE Express">JNE Express</option>
+                      <option value="SiCepat">SiCepat Ekspres</option>
+                      <option value="Ninja Xpress">Ninja Xpress</option>
+                      <option value="ID Express">ID Express</option>
+                      <option value="Wahana">Wahana</option>
+                      <option value="POS Indonesia">POS Indonesia</option>
+                      <option value="Lainnya">Lainnya / Ekspedisi Lokal</option>
+                    </select>
+                  </div>
+
+                  {/* Nomor Resi */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '4px' }}>
+                      Nomor Resi:
+                    </label>
+                    <input
+                      type="text"
+                      value={scannedResiInput}
+                      onChange={(e) => setScannedResiInput(e.target.value)}
+                      required
+                      placeholder="Masukkan nomor resi..."
+                      style={{
+                        width: '100%',
+                        height: '38px',
+                        padding: '0 10px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid var(--color-border)',
+                        background: 'var(--color-bg-input)',
+                        color: 'var(--color-text-main)',
+                        fontSize: '12.5px',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+
+                  {/* Nama Penerima */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '4px' }}>
+                      Nama Penerima: <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Nama yang tertulis di paket..."
+                      value={unregNama}
+                      onChange={(e) => setUnregNama(e.target.value)}
+                      required
+                      style={{
+                        width: '100%',
+                        height: '38px',
+                        padding: '0 10px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid var(--color-border)',
+                        background: 'var(--color-bg-input)',
+                        color: 'var(--color-text-main)',
+                        fontSize: '12.5px',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+
+                  {/* No WhatsApp */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '4px' }}>
+                      No. WhatsApp / HP Penerima:
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="Contoh: 08123456789"
+                      value={unregHp}
+                      onChange={(e) => setUnregHp(e.target.value)}
+                      style={{
+                        width: '100%',
+                        height: '38px',
+                        padding: '0 10px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid var(--color-border)',
+                        background: 'var(--color-bg-input)',
+                        color: 'var(--color-text-main)',
+                        fontSize: '12.5px',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+
+                  {/* Desa Tujuan */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '4px' }}>
+                      Desa Tujuan:
+                    </label>
+                    <select
+                      value={unregDesaId}
+                      onChange={(e) => setUnregDesaId(e.target.value)}
+                      style={{
+                        width: '100%',
+                        height: '38px',
+                        padding: '0 10px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid var(--color-border)',
+                        background: 'var(--color-bg-input)',
+                        color: 'var(--color-text-main)',
+                        fontSize: '12.5px',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <option value="">-- Pilih Desa Pelosok --</option>
+                      {desaList.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          Desa {d.nama_desa}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Detail Alamat / Patokan */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '4px' }}>
+                      Detail Alamat / Patokan:
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: Kp. Cibeet RT 01/RW 02 dekat jembatan"
+                      value={unregDetailAlamat}
+                      onChange={(e) => setUnregDetailAlamat(e.target.value)}
+                      style={{
+                        width: '100%',
+                        height: '38px',
+                        padding: '0 10px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid var(--color-border)',
+                        background: 'var(--color-bg-input)',
+                        color: 'var(--color-text-main)',
+                        fontSize: '12.5px',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+
+                  {/* Metode Pembayaran */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '6px' }}>
+                      Metode Pembayaran:
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setUnregMetode('COD')}
+                        style={{
+                          flex: 1,
+                          padding: '8px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          border: unregMetode === 'COD' ? '2px solid #16a34a' : '1px solid var(--color-border)',
+                          background: unregMetode === 'COD' ? '#ecfdf5' : 'var(--color-bg-card)',
+                          color: unregMetode === 'COD' ? '#166534' : 'var(--color-text-main)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        💵 COD (Bayar di Tempat)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setUnregMetode('Transfer')}
+                        style={{
+                          flex: 1,
+                          padding: '8px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          border: unregMetode === 'Transfer' ? '2px solid #2563eb' : '1px solid var(--color-border)',
+                          background: unregMetode === 'Transfer' ? '#eff6ff' : 'var(--color-bg-card)',
+                          color: unregMetode === 'Transfer' ? '#1e40af' : 'var(--color-text-main)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        🏦 Non-COD (Lunas)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Input Harga Paket & Ongkir */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '4px' }}>
+                        Harga Paket / COD (Rp)
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="0 jika lunas"
+                        value={unregHargaBarang}
+                        onChange={(e) => setUnregHargaBarang(e.target.value)}
+                        style={{
+                          width: '100%',
+                          height: '38px',
+                          padding: '0 8px',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid var(--color-border)',
+                          background: 'var(--color-bg-input)',
+                          color: 'var(--color-text-main)',
+                          fontSize: '12px',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '4px' }}>
+                        Ongkir Kurir (Rp)
+                      </label>
+                      <input
+                        type="number"
+                        value={unregOngkirKurir}
+                        onChange={(e) => setUnregOngkirKurir(e.target.value)}
+                        style={{
+                          width: '100%',
+                          height: '38px',
+                          padding: '0 8px',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid var(--color-border)',
+                          background: 'var(--color-bg-input)',
+                          color: 'var(--color-text-main)',
+                          fontSize: '12px',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Total Tagihan COD */}
+                  <div
+                    style={{
+                      background: 'var(--color-bg-input)',
+                      border: '1px dashed var(--color-border)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '8px 12px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: '12px',
+                    }}
+                  >
+                    <span style={{ color: 'var(--color-text-muted)', fontWeight: '600' }}>
+                      Total Tagihan di Lokasi:
+                    </span>
+                    <span style={{ color: 'var(--color-primary-dark)', fontWeight: '800', fontSize: '14px' }}>
+                      Rp {((parseFloat(unregHargaBarang) || 0) + (parseFloat(unregOngkirKurir) || 0)).toLocaleString('id-ID')}
+                    </span>
+                  </div>
+
+                  {/* Tombol Aksi */}
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                    {unregHp.trim() && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleChatUnregWa}
+                        style={{
+                          flex: 1,
+                          borderColor: '#22c55e',
+                          color: '#16a34a',
+                          background: '#f0fdf4',
+                          fontWeight: '700',
+                          fontSize: '12px',
+                        }}
+                      >
+                        💬 Chat WA Penerima
+                      </Button>
+                    )}
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      loading={unregSaving}
+                      style={{
+                        flex: 2,
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        color: '#ffffff',
+                        fontWeight: '800',
+                        fontSize: '12.5px',
+                      }}
+                    >
+                      🛵 Daftarkan & Mulai Antar
+                    </Button>
+                  </div>
+                </form>
+              </Card>
             </div>
           )}
 
