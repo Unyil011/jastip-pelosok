@@ -63,6 +63,8 @@ export default function DashboardKurir() {
   // ==========================================
   // STATE FILTER & PENCARIAN (PERSISTENSI LOCALSTORAGE)
   // ==========================================
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
   const [serviceFilter, setServiceFilter] = useState(() => {
@@ -72,7 +74,8 @@ export default function DashboardKurir() {
     return localStorage.getItem('kurir_desa_filter') || 'semua';
   });
   const [dateFilter, setDateFilter] = useState(() => {
-    return localStorage.getItem('kurir_date_filter') || 'hari_ini';
+    const saved = localStorage.getItem('kurir_date_filter');
+    return saved || `hari:${new Date().toISOString().split('T')[0]}`;
   });
   const [statusFilter, setStatusFilter] = useState(() => {
     return localStorage.getItem('kurir_status_filter') || 'semua';
@@ -101,29 +104,51 @@ export default function DashboardKurir() {
     sessionStorage.setItem('kurir_search_query', searchQuery);
   }, [searchQuery]);
 
-  // State Kontrol Dialog Filter Tanggal Interaktif (Harian, Bulanan, Tahunan)
-  const [tempDateMode, setTempDateMode] = useState('hari');
+  // State Kontrol Dialog Filter Tanggal (Hari [dengan date picker], Bulanan, Tahunan)
   const [tempCustomDate, setTempCustomDate] = useState(() => {
+    if (dateFilter && dateFilter.startsWith('hari:')) {
+      return dateFilter.substring(5);
+    }
     return new Date().toISOString().split('T')[0];
   });
-  const [tempMonth, setTempMonth] = useState(() => new Date().getMonth() + 1);
-  const [tempYear, setTempYear] = useState(() => new Date().getFullYear());
+  const [tempMonth, setTempMonth] = useState(() => {
+    if (dateFilter && dateFilter.startsWith('bulan:')) {
+      const parts = dateFilter.substring(6).split('-');
+      if (parts[1]) return parseInt(parts[1]);
+    }
+    return new Date().getMonth() + 1;
+  });
+  const [tempYear, setTempYear] = useState(() => {
+    if (dateFilter && dateFilter.startsWith('tahun:')) {
+      return parseInt(dateFilter.substring(6));
+    }
+    if (dateFilter && dateFilter.startsWith('bulan:')) {
+      const parts = dateFilter.substring(6).split('-');
+      if (parts[0]) return parseInt(parts[0]);
+    }
+    return new Date().getFullYear();
+  });
 
-  // Cek apakah ada filter non-default yang aktif (untuk indikator titik merah pada icon filter)
+  // Indikator Titik Merah Aktif jika Filter BUKAN Default (Default: Hari ini, Semua Desa, Semua Layanan)
   const isFilterActive = useMemo(() => {
-    const isDateActive = Boolean(dateFilter && dateFilter !== 'hari_ini');
-    const isDesaActive = Boolean(desaFilter && desaFilter !== 'semua');
-    const isServiceActive = Boolean(serviceFilter && serviceFilter !== 'semua');
-    return isDateActive || isDesaActive || isServiceActive;
-  }, [dateFilter, desaFilter, serviceFilter]);
+    const isDateCustom = Boolean(
+      dateFilter &&
+      dateFilter !== 'hari_ini' &&
+      dateFilter !== `hari:${todayStr}`
+    );
+    const isDesaCustom = Boolean(desaFilter && desaFilter !== 'semua');
+    const isServiceCustom = Boolean(serviceFilter && serviceFilter !== 'semua');
+    return isDateCustom || isDesaCustom || isServiceCustom;
+  }, [dateFilter, desaFilter, serviceFilter, todayStr]);
 
   // Reset semua filter ke default (Hari Ini, Semua Desa, Semua Layanan)
   const handleResetFilters = () => {
-    setDateFilter('hari_ini');
+    const defDate = `hari:${todayStr}`;
+    setDateFilter(defDate);
     setDesaFilter('semua');
     setServiceFilter('semua');
-    setTempDateMode('hari');
-    localStorage.setItem('kurir_date_filter', 'hari_ini');
+    setTempCustomDate(todayStr);
+    localStorage.setItem('kurir_date_filter', defDate);
     localStorage.setItem('kurir_desa_filter', 'semua');
     localStorage.setItem('kurir_service_filter', 'semua');
   };
@@ -760,37 +785,36 @@ export default function DashboardKurir() {
     return filter;
   };
 
-  // Filter Data berdasarkan Tanggal & Desa (Mendukung Hari spesifik, Bulan spesifik, Tahun spesifik, dan Desa)
+  // Filter Data berdasarkan Tanggal & Desa
   const ordersInDateRange = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+
     return orders.filter((order) => {
       // 1. Filter Tanggal
       const timestamp = order.updated_at || order.created_at;
       let dateMatch = true;
       if (timestamp) {
         const d = new Date(timestamp);
-        if (dateFilter === 'hari_ini') {
-          dateMatch = isDateToday(timestamp) || isDateToday(order.created_at);
-        } else if (dateFilter === 'kemarin') {
-          dateMatch = isDateYesterday(timestamp) || isDateYesterday(order.created_at);
-        } else if (dateFilter === 'bulan_ini') {
-          const now = new Date();
-          dateMatch = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-        } else if (dateFilter === 'tahun_ini') {
-          dateMatch = d.getFullYear() === new Date().getFullYear();
-        } else if (dateFilter.startsWith('hari:')) {
-          const target = dateFilter.substring(5);
-          const y = d.getFullYear();
-          const m = String(d.getMonth() + 1).padStart(2, '0');
-          const day = String(d.getDate()).padStart(2, '0');
-          dateMatch = `${y}-${m}-${day}` === target;
-        } else if (dateFilter.startsWith('bulan:')) {
-          const [tY, tM] = dateFilter.substring(6).split('-');
-          dateMatch = d.getFullYear() === parseInt(tY) && (d.getMonth() + 1) === parseInt(tM);
-        } else if (dateFilter.startsWith('tahun:')) {
-          const tY = parseInt(dateFilter.substring(6));
-          dateMatch = d.getFullYear() === tY;
-        } else if (dateFilter === 'semua') {
-          dateMatch = true;
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const orderDateStr = `${y}-${m}-${day}`;
+
+        if (!dateFilter || dateFilter === 'hari_ini' || dateFilter.startsWith('hari:')) {
+          const target = dateFilter && dateFilter.startsWith('hari:')
+            ? dateFilter.substring(5)
+            : today;
+          dateMatch = orderDateStr === target;
+        } else if (dateFilter === 'bulan_ini' || dateFilter.startsWith('bulan:')) {
+          const targetYM = dateFilter.startsWith('bulan:')
+            ? dateFilter.substring(6)
+            : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+          dateMatch = `${y}-${m}` === targetYM;
+        } else if (dateFilter === 'tahun_ini' || dateFilter.startsWith('tahun:')) {
+          const targetYear = dateFilter.startsWith('tahun:')
+            ? parseInt(dateFilter.substring(6))
+            : new Date().getFullYear();
+          dateMatch = y === targetYear;
         }
       }
 
@@ -1599,8 +1623,59 @@ export default function DashboardKurir() {
           </div>
         </div>
 
-        {/* Action Buttons Kanan: GPS Tracker + Avatar Profil */}
+        {/* Action Buttons Kanan: GPS Tracker + Icon Filter + Avatar Profil */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* 1 ICON FILTER TUNGGAL DENGAN INDIKATOR TITIK MERAH (PINDAH KE SAMPING PROFIL) */}
+          <button
+            type="button"
+            onClick={() => setFilterSheetOpen(true)}
+            title="Filter Antaran & Kas"
+            style={{
+              position: 'relative',
+              background: isFilterActive ? '#ecfdf5' : 'var(--color-bg-card)',
+              border: isFilterActive ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
+              borderRadius: '50%',
+              width: '36px',
+              height: '36px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: 'var(--skeuo-button-raised)',
+              transition: 'all 0.15s ease',
+              padding: 0,
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={isFilterActive ? 'var(--color-primary)' : 'var(--color-text-main)'}
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+            </svg>
+
+            {/* Titik Merah Indikator Filter Aktif */}
+            {isFilterActive && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: '3px',
+                  right: '3px',
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: '#ef4444',
+                  border: '1.5px solid #ffffff',
+                  boxShadow: '0 0 4px rgba(239, 68, 68, 0.7)',
+                }}
+              />
+            )}
+          </button>
           {/* Toggle GPS */}
           <button
             onClick={toggleGpsTracking}
@@ -1804,76 +1879,17 @@ export default function DashboardKurir() {
             </button>
           </div>
 
-          {/* Ringkasan Hari Ini & Kas Harian */}
+          {/* Ringkasan Antaran & Kas (Desain Skeuomorphic Konsisten Tanpa Judul Berlebih) */}
           <Card
-            padding="14px 16px"
+            padding="16px"
             style={{
-              background: 'var(--color-bg-card)',
-              border: '1px solid var(--color-border)',
+              background: 'var(--color-bg-card-grad)',
+              boxShadow: 'var(--skeuo-card-shadow)',
+              borderRadius: '16px',
+              border: '1px solid rgba(255, 255, 255, 0.85)',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '15px' }}>📊</span>
-                <h3 style={{ fontSize: '14px', fontWeight: '800', color: 'var(--color-text-main)', margin: 0 }}>
-                  Ringkasan Antaran & Kas
-                </h3>
-              </div>
-
-              {/* 1 ICON FILTER TUNGGAL DENGAN INDIKATOR TITIK MERAH */}
-              <button
-                type="button"
-                onClick={() => setFilterSheetOpen(true)}
-                title="Buka Filter Antaran & Kas"
-                style={{
-                  position: 'relative',
-                  background: isFilterActive ? '#ecfdf5' : 'var(--color-bg-input)',
-                  border: isFilterActive ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
-                  borderRadius: '10px',
-                  width: '36px',
-                  height: '36px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  boxShadow: 'var(--skeuo-button-raised)',
-                  transition: 'all 0.15s ease',
-                  padding: 0,
-                }}
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={isFilterActive ? 'var(--color-primary)' : 'var(--color-text-main)'}
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-                </svg>
-
-                {/* Titik Merah Indikator Filter Aktif */}
-                {isFilterActive && (
-                  <span
-                    style={{
-                      position: 'absolute',
-                      top: '4px',
-                      right: '4px',
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      background: '#ef4444',
-                      border: '1.5px solid #ffffff',
-                      boxShadow: '0 0 4px rgba(239, 68, 68, 0.7)',
-                    }}
-                  />
-                )}
-              </button>
-            </div>
-
-            {/* 4 Kotak Metrik Ringkasan */}
+            {/* 4 Kotak Metrik Ringkasan (Skeuomorphic Sunken Depth) */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '10px' }}>
               <div
                 style={{
@@ -2529,19 +2545,16 @@ export default function DashboardKurir() {
         </div>
       )}
 
-      {/* Bottom Sheet Filter Terpadu (Muncul dari Bawah Sesuai Konsep Admin Panel) */}
+      {/* Bottom Sheet Filter Terpadu (Ringkas & Efisien) */}
       <BottomSheet
         isOpen={filterSheetOpen}
         onClose={() => setFilterSheetOpen(false)}
-        title="Filter Antaran & Kas"
+        title="Filter"
       >
         <div style={{ padding: '0 0 16px 0', display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '72vh', overflowY: 'auto' }}>
-          {/* Subheader: Status Filter & Tombol Reset */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '10px', borderBottom: '1px solid var(--color-border)' }}>
-            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-              {isFilterActive ? '🔴 Filter kustom sedang aktif' : 'Filter default (Hari Ini, Semua Desa)'}
-            </span>
-            {isFilterActive && (
+          {/* Tombol Reset Filter */}
+          {isFilterActive && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingBottom: '2px' }}>
               <button
                 type="button"
                 onClick={handleResetFilters}
@@ -2555,213 +2568,242 @@ export default function DashboardKurir() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
-                  padding: '4px 8px',
-                  borderRadius: '6px',
+                  padding: '2px 6px',
                 }}
               >
                 <span>🔄</span>
-                <span>Reset Filter</span>
+                <span>Reset</span>
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* SEKSI 1: RENTANG WAKTU (Seperti Panel Cahaya Jaya Putri) */}
+          {/* SEKSI 1: RENTANG WAKTU (3 PILIHAN: HARI, BULANAN, TAHUNAN) */}
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--color-text-muted)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '8px' }}>
               RENTANG WAKTU
             </label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {[
-                { id: 'hari_ini', label: 'Hari Ini (Default)', mode: 'hari' },
-                { id: 'kemarin', label: 'Kemarin', mode: 'hari' },
-                { id: 'custom_hari', label: 'Pilih Tanggal Spesifik (Harian)', mode: 'hari_custom' },
-                { id: 'bulan', label: 'Bulanan', mode: 'bulan' },
-                { id: 'tahun', label: 'Tahunan', mode: 'tahun' },
-                { id: 'semua', label: 'Semua Waktu', mode: 'semua' },
-              ].map((opt) => {
-                let isChecked = false;
-                if (opt.id === 'hari_ini') isChecked = dateFilter === 'hari_ini';
-                else if (opt.id === 'kemarin') isChecked = dateFilter === 'kemarin';
-                else if (opt.id === 'custom_hari') isChecked = dateFilter.startsWith('hari:');
-                else if (opt.id === 'bulan') isChecked = dateFilter === 'bulan_ini' || dateFilter.startsWith('bulan:');
-                else if (opt.id === 'tahun') isChecked = dateFilter === 'tahun_ini' || dateFilter.startsWith('tahun:');
-                else if (opt.id === 'semua') isChecked = dateFilter === 'semua';
+              {/* 1. HARI (DEFAULT) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label
+                  onClick={() => {
+                    setDateFilter(`hari:${tempCustomDate}`);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    background: (dateFilter === 'hari_ini' || dateFilter.startsWith('hari:') || !dateFilter) ? 'rgba(34, 197, 94, 0.08)' : 'transparent',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: (dateFilter === 'hari_ini' || dateFilter.startsWith('hari:') || !dateFilter) ? '700' : '500',
+                    color: (dateFilter === 'hari_ini' || dateFilter.startsWith('hari:') || !dateFilter) ? 'var(--color-primary-dark)' : 'var(--color-text-main)',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="rentang_waktu"
+                    checked={dateFilter === 'hari_ini' || dateFilter.startsWith('hari:') || !dateFilter}
+                    onChange={() => {
+                      setDateFilter(`hari:${tempCustomDate}`);
+                    }}
+                    style={{ accentColor: 'var(--color-primary)', width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <span>Hari</span>
+                </label>
 
-                return (
-                  <div key={opt.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label
-                      onClick={() => {
-                        if (opt.id === 'hari_ini') setDateFilter('hari_ini');
-                        else if (opt.id === 'kemarin') setDateFilter('kemarin');
-                        else if (opt.id === 'custom_hari') setDateFilter(`hari:${tempCustomDate}`);
-                        else if (opt.id === 'bulan') {
-                          const mPad = String(tempMonth).padStart(2, '0');
-                          setDateFilter(`bulan:${tempYear}-${mPad}`);
-                        } else if (opt.id === 'tahun') {
-                          setDateFilter(`tahun:${tempYear}`);
-                        } else if (opt.id === 'semua') {
-                          setDateFilter('semua');
+                {/* Date Picker Langsung Muncul Saat Opsi Hari Aktif */}
+                {(dateFilter === 'hari_ini' || dateFilter.startsWith('hari:') || !dateFilter) && (
+                  <div style={{ padding: '2px 10px 8px 34px' }}>
+                    <input
+                      type="date"
+                      value={tempCustomDate}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setTempCustomDate(val);
+                        if (val) {
+                          setDateFilter(`hari:${val}`);
                         }
                       }}
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        padding: '8px 10px',
-                        borderRadius: '8px',
-                        background: isChecked ? 'rgba(34, 197, 94, 0.08)' : 'transparent',
-                        cursor: 'pointer',
+                        width: '100%',
+                        height: '42px',
+                        padding: '0 12px',
+                        borderRadius: '10px',
+                        border: '1.5px solid var(--color-border)',
+                        background: 'var(--color-bg-input)',
+                        boxShadow: 'var(--skeuo-input-sunken)',
+                        color: 'var(--color-text-main)',
                         fontSize: '13px',
-                        fontWeight: isChecked ? '700' : '500',
-                        color: isChecked ? 'var(--color-primary-dark)' : 'var(--color-text-main)',
+                        fontWeight: '700',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* 2. BULANAN */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label
+                  onClick={() => {
+                    const mPad = String(tempMonth).padStart(2, '0');
+                    setDateFilter(`bulan:${tempYear}-${mPad}`);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    background: (dateFilter === 'bulan_ini' || dateFilter.startsWith('bulan:')) ? 'rgba(34, 197, 94, 0.08)' : 'transparent',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: (dateFilter === 'bulan_ini' || dateFilter.startsWith('bulan:')) ? '700' : '500',
+                    color: (dateFilter === 'bulan_ini' || dateFilter.startsWith('bulan:')) ? 'var(--color-primary-dark)' : 'var(--color-text-main)',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="rentang_waktu"
+                    checked={dateFilter === 'bulan_ini' || dateFilter.startsWith('bulan:') || dateFilter === 'bulan'}
+                    onChange={() => {
+                      const mPad = String(tempMonth).padStart(2, '0');
+                      setDateFilter(`bulan:${tempYear}-${mPad}`);
+                    }}
+                    style={{ accentColor: 'var(--color-primary)', width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <span>Bulanan</span>
+                </label>
+
+                {/* Dropdown Bulan & Tahun */}
+                {(dateFilter === 'bulan_ini' || dateFilter.startsWith('bulan:') || dateFilter === 'bulan') && (
+                  <div style={{ padding: '2px 10px 8px 34px', display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '8px' }}>
+                    <select
+                      value={tempMonth}
+                      onChange={(e) => {
+                        const newM = parseInt(e.target.value);
+                        setTempMonth(newM);
+                        const mPad = String(newM).padStart(2, '0');
+                        setDateFilter(`bulan:${tempYear}-${mPad}`);
+                      }}
+                      style={{
+                        width: '100%',
+                        height: '42px',
+                        padding: '0 10px',
+                        borderRadius: '10px',
+                        border: '1.5px solid var(--color-border)',
+                        background: 'var(--color-bg-input)',
+                        boxShadow: 'var(--skeuo-input-sunken)',
+                        color: 'var(--color-text-main)',
+                        fontSize: '13px',
+                        fontWeight: '700',
                       }}
                     >
-                      <input
-                        type="radio"
-                        name="rentang_waktu"
-                        checked={isChecked}
-                        onChange={() => {}}
-                        style={{ accentColor: 'var(--color-primary)', width: '16px', height: '16px', cursor: 'pointer' }}
-                      />
-                      <span>{opt.label}</span>
-                    </label>
+                      {NAMA_BULAN.map((nama, idx) => (
+                        <option key={idx + 1} value={idx + 1}>
+                          {nama}
+                        </option>
+                      ))}
+                    </select>
 
-                    {/* Jika Pilih Tanggal Spesifik Dipilih: Munculkan Datepicker */}
-                    {opt.id === 'custom_hari' && isChecked && (
-                      <div style={{ padding: '4px 10px 10px 34px' }}>
-                        <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '4px' }}>
-                          Pilih Tanggal, Bulan & Tahun:
-                        </span>
-                        <input
-                          type="date"
-                          value={tempCustomDate}
-                          onChange={(e) => {
-                            setTempCustomDate(e.target.value);
-                            if (e.target.value) {
-                              setDateFilter(`hari:${e.target.value}`);
-                            }
-                          }}
-                          style={{
-                            width: '100%',
-                            height: '40px',
-                            padding: '0 10px',
-                            borderRadius: '8px',
-                            border: '1.5px solid var(--color-border)',
-                            background: 'var(--color-bg-input)',
-                            color: 'var(--color-text-main)',
-                            fontSize: '13px',
-                            fontWeight: '600',
-                            boxSizing: 'border-box',
-                          }}
-                        />
-                      </div>
-                    )}
-
-                    {/* Jika Bulanan Dipilih: Munculkan Dropdown Bulan & Tahun */}
-                    {opt.id === 'bulan' && isChecked && (
-                      <div style={{ padding: '4px 10px 10px 34px', display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '8px' }}>
-                        <div>
-                          <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '4px' }}>
-                            Bulan:
-                          </span>
-                          <select
-                            value={tempMonth}
-                            onChange={(e) => {
-                              const newM = parseInt(e.target.value);
-                              setTempMonth(newM);
-                              const mPad = String(newM).padStart(2, '0');
-                              setDateFilter(`bulan:${tempYear}-${mPad}`);
-                            }}
-                            style={{
-                              width: '100%',
-                              height: '40px',
-                              padding: '0 8px',
-                              borderRadius: '8px',
-                              border: '1.5px solid var(--color-border)',
-                              background: 'var(--color-bg-input)',
-                              color: 'var(--color-text-main)',
-                              fontSize: '12.5px',
-                              fontWeight: '600',
-                            }}
-                          >
-                            {NAMA_BULAN.map((nama, idx) => (
-                              <option key={idx + 1} value={idx + 1}>
-                                {nama}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '4px' }}>
-                            Tahun:
-                          </span>
-                          <select
-                            value={tempYear}
-                            onChange={(e) => {
-                              const newY = parseInt(e.target.value);
-                              setTempYear(newY);
-                              const mPad = String(tempMonth).padStart(2, '0');
-                              setDateFilter(`bulan:${newY}-${mPad}`);
-                            }}
-                            style={{
-                              width: '100%',
-                              height: '40px',
-                              padding: '0 8px',
-                              borderRadius: '8px',
-                              border: '1.5px solid var(--color-border)',
-                              background: 'var(--color-bg-input)',
-                              color: 'var(--color-text-main)',
-                              fontSize: '12.5px',
-                              fontWeight: '600',
-                            }}
-                          >
-                            {[2024, 2025, 2026, 2027, 2028].map((y) => (
-                              <option key={y} value={y}>
-                                {y}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Jika Tahunan Dipilih: Munculkan Dropdown Tahun */}
-                    {opt.id === 'tahun' && isChecked && (
-                      <div style={{ padding: '4px 10px 10px 34px' }}>
-                        <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '4px' }}>
-                          Pilih Tahun:
-                        </span>
-                        <select
-                          value={tempYear}
-                          onChange={(e) => {
-                            const newY = parseInt(e.target.value);
-                            setTempYear(newY);
-                            setDateFilter(`tahun:${newY}`);
-                          }}
-                          style={{
-                            width: '100%',
-                            height: '40px',
-                            padding: '0 10px',
-                            borderRadius: '8px',
-                            border: '1.5px solid var(--color-border)',
-                            background: 'var(--color-bg-input)',
-                            color: 'var(--color-text-main)',
-                            fontSize: '13px',
-                            fontWeight: '600',
-                            boxSizing: 'border-box',
-                          }}
-                        >
-                          {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map((y) => (
-                            <option key={y} value={y}>
-                              Tahun {y}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+                    <select
+                      value={tempYear}
+                      onChange={(e) => {
+                        const newY = parseInt(e.target.value);
+                        setTempYear(newY);
+                        const mPad = String(tempMonth).padStart(2, '0');
+                        setDateFilter(`bulan:${newY}-${mPad}`);
+                      }}
+                      style={{
+                        width: '100%',
+                        height: '42px',
+                        padding: '0 10px',
+                        borderRadius: '10px',
+                        border: '1.5px solid var(--color-border)',
+                        background: 'var(--color-bg-input)',
+                        boxShadow: 'var(--skeuo-input-sunken)',
+                        color: 'var(--color-text-main)',
+                        fontSize: '13px',
+                        fontWeight: '700',
+                      }}
+                    >
+                      {[2024, 2025, 2026, 2027, 2028].map((y) => (
+                        <option key={y} value={y}>
+                          {y}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                );
-              })}
+                )}
+              </div>
+
+              {/* 3. TAHUNAN */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label
+                  onClick={() => {
+                    setDateFilter(`tahun:${tempYear}`);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    background: (dateFilter === 'tahun_ini' || dateFilter.startsWith('tahun:')) ? 'rgba(34, 197, 94, 0.08)' : 'transparent',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: (dateFilter === 'tahun_ini' || dateFilter.startsWith('tahun:')) ? '700' : '500',
+                    color: (dateFilter === 'tahun_ini' || dateFilter.startsWith('tahun:')) ? 'var(--color-primary-dark)' : 'var(--color-text-main)',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="rentang_waktu"
+                    checked={dateFilter === 'tahun_ini' || dateFilter.startsWith('tahun:') || dateFilter === 'tahun'}
+                    onChange={() => {
+                      setDateFilter(`tahun:${tempYear}`);
+                    }}
+                    style={{ accentColor: 'var(--color-primary)', width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <span>Tahunan</span>
+                </label>
+
+                {/* Dropdown Tahun */}
+                {(dateFilter === 'tahun_ini' || dateFilter.startsWith('tahun:') || dateFilter === 'tahun') && (
+                  <div style={{ padding: '2px 10px 8px 34px' }}>
+                    <select
+                      value={tempYear}
+                      onChange={(e) => {
+                        const newY = parseInt(e.target.value);
+                        setTempYear(newY);
+                        setDateFilter(`tahun:${newY}`);
+                      }}
+                      style={{
+                        width: '100%',
+                        height: '42px',
+                        padding: '0 12px',
+                        borderRadius: '10px',
+                        border: '1.5px solid var(--color-border)',
+                        background: 'var(--color-bg-input)',
+                        boxShadow: 'var(--skeuo-input-sunken)',
+                        color: 'var(--color-text-main)',
+                        fontSize: '13px',
+                        fontWeight: '700',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map((y) => (
+                        <option key={y} value={y}>
+                          Tahun {y}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -2777,25 +2819,26 @@ export default function DashboardKurir() {
                 width: '100%',
                 height: '42px',
                 padding: '0 12px',
-                borderRadius: '8px',
+                borderRadius: '10px',
                 border: desaFilter !== 'semua' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-border)',
                 background: desaFilter !== 'semua' ? '#ecfdf5' : 'var(--color-bg-input)',
+                boxShadow: 'var(--skeuo-input-sunken)',
                 color: 'var(--color-text-main)',
                 fontSize: '13px',
                 fontWeight: '700',
                 boxSizing: 'border-box',
               }}
             >
-              <option value="semua">🌐 Semua Desa (Seluruh Wilayah Naringgul)</option>
+              <option value="semua">Semua Desa</option>
               {NARINGGUL_VILLAGES.map((namaDesa) => (
                 <option key={namaDesa} value={namaDesa}>
-                  🏡 Desa {namaDesa}
+                  Desa {namaDesa}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* SEKSI 3: TIPE LAYANAN */}
+          {/* SEKSI 3: JENIS LAYANAN */}
           <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '12px' }}>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--color-text-muted)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '8px' }}>
               JENIS LAYANAN
@@ -2803,7 +2846,7 @@ export default function DashboardKurir() {
             <div style={{ display: 'flex', gap: '8px' }}>
               {[
                 { id: 'semua', label: 'Semua' },
-                { id: 'paket', label: '📦 Paket Ekspedisi' },
+                { id: 'paket', label: '📦 Paket' },
                 { id: 'jastip', label: '🛍️ Jastip' },
               ].map((btn) => (
                 <button
@@ -2813,13 +2856,14 @@ export default function DashboardKurir() {
                   style={{
                     flex: 1,
                     padding: '8px 4px',
-                    borderRadius: '8px',
+                    borderRadius: '10px',
                     border: serviceFilter === btn.id ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
                     background: serviceFilter === btn.id ? 'var(--color-primary)' : 'var(--color-bg-card)',
                     color: serviceFilter === btn.id ? '#ffffff' : 'var(--color-text-main)',
                     fontSize: '12px',
                     fontWeight: '700',
                     cursor: 'pointer',
+                    boxShadow: 'var(--skeuo-button-raised)',
                   }}
                 >
                   {btn.label}
@@ -2835,7 +2879,7 @@ export default function DashboardKurir() {
               onClick={() => setFilterSheetOpen(false)}
               style={{ width: '100%', height: '44px', fontSize: '13.5px', fontWeight: '800' }}
             >
-              ✓ Terapkan Filter
+              Terapkan Filter
             </Button>
           </div>
         </div>
