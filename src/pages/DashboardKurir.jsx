@@ -4,7 +4,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { useAuth } from '../hooks/useAuth';
 import { authService } from '../services/authService';
 import { orderService } from '../services/orderService';
-import { villageService } from '../services/villageService';
+import { villageService, NARINGGUL_VILLAGES } from '../services/villageService';
 import { compressImageToWebP } from '../utils/imageCompressor';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
@@ -62,6 +62,24 @@ export default function DashboardKurir() {
 
   // State Modal BottomSheet Filter Waktu
   const [dateFilterSheetOpen, setDateFilterSheetOpen] = useState(false);
+
+  // State Modal BottomSheet Filter Desa
+  const [desaFilterSheetOpen, setDesaFilterSheetOpen] = useState(false);
+  const [desaFilter, setDesaFilter] = useState(() => {
+    return localStorage.getItem('kurir_desa_filter') || 'semua';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('kurir_desa_filter', desaFilter);
+  }, [desaFilter]);
+
+  // State Kontrol Dialog Filter Tanggal Interaktif (Harian, Bulanan, Tahunan)
+  const [tempDateMode, setTempDateMode] = useState('hari'); // 'hari' | 'bulan' | 'tahun' | 'semua'
+  const [tempCustomDate, setTempCustomDate] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+  const [tempMonth, setTempMonth] = useState(() => new Date().getMonth() + 1);
+  const [tempYear, setTempYear] = useState(() => new Date().getFullYear());
 
   // State Filter Jenis Layanan: 'semua' | 'paket' | 'jastip'
   const [serviceFilter, setServiceFilter] = useState('semua');
@@ -681,44 +699,97 @@ export default function DashboardKurir() {
   };
 
   // Filter Data berdasarkan Tanggal (Hari Ini, Kemarin, Semua)
+  // Daftar Nama Bulan Indonesia
+  const NAMA_BULAN = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
+
   // Helper Label Filter Tanggal
   const getDateFilterLabel = (filter) => {
-    switch (filter) {
-      case 'kemarin': return 'Kemarin';
-      case 'bulan_ini': return 'Bulan Ini (Bulanan)';
-      case 'tahun_ini': return 'Tahun Ini (Tahunan)';
-      case 'semua': return 'Semua Waktu';
-      case 'hari_ini':
-      default:
-        return 'Hari Ini';
+    if (!filter || filter === 'hari_ini') return 'Hari Ini';
+    if (filter === 'kemarin') return 'Kemarin';
+    if (filter === 'semua') return 'Semua Waktu';
+    if (filter === 'bulan_ini') {
+      const now = new Date();
+      return `${NAMA_BULAN[now.getMonth()]} ${now.getFullYear()}`;
     }
+    if (filter === 'tahun_ini') {
+      return `Tahun ${new Date().getFullYear()}`;
+    }
+    if (filter.startsWith('hari:')) {
+      const dStr = filter.substring(5); // YYYY-MM-DD
+      const parts = dStr.split('-');
+      if (parts.length === 3) {
+        const [y, m, d] = parts;
+        return `${parseInt(d)} ${NAMA_BULAN[parseInt(m) - 1]?.slice(0, 3)} ${y}`;
+      }
+      return dStr;
+    }
+    if (filter.startsWith('bulan:')) {
+      const ym = filter.substring(6); // YYYY-MM
+      const parts = ym.split('-');
+      if (parts.length === 2) {
+        const [y, m] = parts;
+        return `${NAMA_BULAN[parseInt(m) - 1]} ${y}`;
+      }
+      return ym;
+    }
+    if (filter.startsWith('tahun:')) {
+      return `Tahun ${filter.substring(6)}`;
+    }
+    return filter;
   };
 
-  // Filter Data berdasarkan Tanggal (Hari Ini, Kemarin, Bulanan, Tahunan, Semua)
+  // Filter Data berdasarkan Tanggal & Desa (Mendukung Hari spesifik, Bulan spesifik, Tahun spesifik, dan Desa)
   const ordersInDateRange = useMemo(() => {
     return orders.filter((order) => {
+      // 1. Filter Tanggal
       const timestamp = order.updated_at || order.created_at;
-      if (!timestamp) return true;
+      let dateMatch = true;
+      if (timestamp) {
+        const d = new Date(timestamp);
+        if (dateFilter === 'hari_ini') {
+          dateMatch = isDateToday(timestamp) || isDateToday(order.created_at);
+        } else if (dateFilter === 'kemarin') {
+          dateMatch = isDateYesterday(timestamp) || isDateYesterday(order.created_at);
+        } else if (dateFilter === 'bulan_ini') {
+          const now = new Date();
+          dateMatch = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        } else if (dateFilter === 'tahun_ini') {
+          dateMatch = d.getFullYear() === new Date().getFullYear();
+        } else if (dateFilter.startsWith('hari:')) {
+          const target = dateFilter.substring(5);
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          dateMatch = `${y}-${m}-${day}` === target;
+        } else if (dateFilter.startsWith('bulan:')) {
+          const [tY, tM] = dateFilter.substring(6).split('-');
+          dateMatch = d.getFullYear() === parseInt(tY) && (d.getMonth() + 1) === parseInt(tM);
+        } else if (dateFilter.startsWith('tahun:')) {
+          const tY = parseInt(dateFilter.substring(6));
+          dateMatch = d.getFullYear() === tY;
+        } else if (dateFilter === 'semua') {
+          dateMatch = true;
+        }
+      }
 
-      if (dateFilter === 'hari_ini') {
-        return isDateToday(timestamp) || isDateToday(order.created_at);
+      if (!dateMatch) return false;
+
+      // 2. Filter Desa
+      if (desaFilter && desaFilter !== 'semua') {
+        const target = desaFilter.toLowerCase().replace('desa', '').trim();
+        const alamat = (order.alamat_tujuan || '').toLowerCase();
+        const custAlamat = (order.customer?.alamat || '').toLowerCase();
+        const deskripsi = (order.deskripsi_barang || '').toLowerCase();
+        const desaMatch = alamat.includes(target) || custAlamat.includes(target) || deskripsi.includes(target);
+        if (!desaMatch) return false;
       }
-      if (dateFilter === 'kemarin') {
-        return isDateYesterday(timestamp) || isDateYesterday(order.created_at);
-      }
-      if (dateFilter === 'bulan_ini') {
-        const d = new Date(timestamp);
-        const now = new Date();
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      }
-      if (dateFilter === 'tahun_ini') {
-        const d = new Date(timestamp);
-        const now = new Date();
-        return d.getFullYear() === now.getFullYear();
-      }
+
       return true;
     });
-  }, [orders, dateFilter]);
+  }, [orders, dateFilter, desaFilter]);
 
   // Helper Ekstraksi Nilai Barang COD dari Catatan Paket
   const getCodBarangAmount = (order) => {
@@ -1729,29 +1800,57 @@ export default function DashboardKurir() {
                   Ringkasan Antaran & Kas
                 </h3>
               </div>
-              {/* Tombol Pemicu BottomSheet Filter Periode Waktu */}
-              <button
-                type="button"
-                onClick={() => setDateFilterSheetOpen(true)}
-                style={{
-                  background: 'var(--color-bg-input)',
-                  border: '1.5px solid var(--color-border)',
-                  borderRadius: '20px',
-                  padding: '5px 12px',
-                  fontSize: '11.5px',
-                  fontWeight: '700',
-                  color: 'var(--color-text-main)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  boxShadow: 'var(--skeuo-button-raised)',
-                }}
-              >
-                <span>📅</span>
-                <span>{getDateFilterLabel(dateFilter)}</span>
-                <span style={{ fontSize: '10px', opacity: 0.6 }}>▾</span>
-              </button>
+
+              {/* Group Filter Tanggal & Filter Desa */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                {/* Tombol Pemicu BottomSheet Filter Periode Waktu */}
+                <button
+                  type="button"
+                  onClick={() => setDateFilterSheetOpen(true)}
+                  style={{
+                    background: 'var(--color-bg-input)',
+                    border: '1.5px solid var(--color-border)',
+                    borderRadius: '20px',
+                    padding: '5px 10px',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    color: 'var(--color-text-main)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    boxShadow: 'var(--skeuo-button-raised)',
+                  }}
+                >
+                  <span>📅</span>
+                  <span>{getDateFilterLabel(dateFilter)}</span>
+                  <span style={{ fontSize: '9px', opacity: 0.6 }}>▾</span>
+                </button>
+
+                {/* Tombol Pemicu BottomSheet Filter Desa */}
+                <button
+                  type="button"
+                  onClick={() => setDesaFilterSheetOpen(true)}
+                  style={{
+                    background: desaFilter !== 'semua' ? 'rgba(34, 197, 94, 0.12)' : 'var(--color-bg-input)',
+                    border: desaFilter !== 'semua' ? '1.5px solid #22c55e' : '1.5px solid var(--color-border)',
+                    borderRadius: '20px',
+                    padding: '5px 10px',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    color: desaFilter !== 'semua' ? '#15803d' : 'var(--color-text-main)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    boxShadow: 'var(--skeuo-button-raised)',
+                  }}
+                >
+                  <span>🏡</span>
+                  <span>{desaFilter === 'semua' ? 'Semua Desa' : `Desa ${desaFilter}`}</span>
+                  <span style={{ fontSize: '9px', opacity: 0.6 }}>▾</span>
+                </button>
+              </div>
             </div>
 
             {/* 4 Kotak Metrik Ringkasan */}
@@ -2064,6 +2163,55 @@ export default function DashboardKurir() {
             )}
           </div>
 
+          {/* Quick Filter: Periode Tanggal & Filter Desa Pelosok */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => setDateFilterSheetOpen(true)}
+              style={{
+                background: 'var(--color-bg-card)',
+                border: '1.5px solid var(--color-border)',
+                borderRadius: '20px',
+                padding: '6px 12px',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                color: 'var(--color-text-main)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                boxShadow: 'var(--skeuo-button-raised)',
+              }}
+            >
+              <span>📅</span>
+              <span>{getDateFilterLabel(dateFilter)}</span>
+              <span style={{ fontSize: '9px', opacity: 0.6 }}>▾</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDesaFilterSheetOpen(true)}
+              style={{
+                background: desaFilter !== 'semua' ? 'rgba(34, 197, 94, 0.12)' : 'var(--color-bg-card)',
+                border: desaFilter !== 'semua' ? '1.5px solid #22c55e' : '1.5px solid var(--color-border)',
+                borderRadius: '20px',
+                padding: '6px 12px',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                color: desaFilter !== 'semua' ? '#15803d' : 'var(--color-text-main)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                boxShadow: 'var(--skeuo-button-raised)',
+              }}
+            >
+              <span>🏡</span>
+              <span>{desaFilter === 'semua' ? 'Semua Desa' : `Desa ${desaFilter}`}</span>
+              <span style={{ fontSize: '9px', opacity: 0.6 }}>▾</span>
+            </button>
+          </div>
+
           {/* Status Filter Chips (Pill Rounded) */}
           <div
             style={{
@@ -2328,50 +2476,412 @@ export default function DashboardKurir() {
         </div>
       )}
 
-      {/* Bottom Sheet Filter Periode Waktu */}
+      {/* Bottom Sheet Filter Periode Waktu Fleksibel (Hari, Bulan, Tahun, Semua) */}
       <BottomSheet
         isOpen={dateFilterSheetOpen}
         onClose={() => setDateFilterSheetOpen(false)}
         title="📅 Pilih Periode Waktu"
       >
-        <div style={{ padding: '8px 0 16px 0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {[
-            { id: 'hari_ini', label: 'Hari Ini (Default)', icon: '⚡' },
-            { id: 'kemarin', label: 'Kemarin', icon: '📆' },
-            { id: 'bulan_ini', label: 'Bulan Ini (Bulanan)', icon: '🗓️' },
-            { id: 'tahun_ini', label: 'Tahun Ini (Tahunan)', icon: '📊' },
-            { id: 'semua', label: 'Semua Waktu', icon: '🌐' },
-          ].map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => {
-                setDateFilter(opt.id);
-                localStorage.setItem('kurir_date_filter', opt.id);
-                setDateFilterSheetOpen(false);
-              }}
-              style={{
-                width: '100%',
-                padding: '12px 14px',
-                borderRadius: '10px',
-                border: dateFilter === opt.id ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-                background: dateFilter === opt.id ? '#ecfdf5' : 'var(--color-bg-card)',
-                color: dateFilter === opt.id ? 'var(--color-primary-dark)' : 'var(--color-text-main)',
-                fontSize: '13px',
-                fontWeight: dateFilter === opt.id ? '800' : '600',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                cursor: 'pointer',
-              }}
-            >
-              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '16px' }}>{opt.icon}</span>
-                <span>{opt.label}</span>
-              </span>
-              {dateFilter === opt.id && <span style={{ color: 'var(--color-primary)', fontWeight: '900' }}>✓</span>}
-            </button>
-          ))}
+        <div style={{ padding: '8px 0 18px 0', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* Tab Segmented: Hari, Bulan, Tahun, Semua */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              background: 'var(--color-bg-input)',
+              borderRadius: '12px',
+              padding: '4px',
+              border: '1px solid var(--color-border)',
+              gap: '4px',
+            }}
+          >
+            {[
+              { id: 'hari', label: 'Hari', icon: '⚡' },
+              { id: 'bulan', label: 'Bulan', icon: '🗓️' },
+              { id: 'tahun', label: 'Tahun', icon: '📊' },
+              { id: 'semua', label: 'Semua', icon: '🌐' },
+            ].map((tab) => {
+              const active = tempDateMode === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setTempDateMode(tab.id)}
+                  style={{
+                    padding: '8px 4px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: active ? 'var(--color-primary)' : 'transparent',
+                    color: active ? '#ffffff' : 'var(--color-text-muted)',
+                    fontSize: '12px',
+                    fontWeight: active ? '800' : '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '2px',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span style={{ fontSize: '14px' }}>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Mode Tab 1: Hari (Hari Ini, Kemarin, atau Pilih Tanggal Spesifik) */}
+          {tempDateMode === 'hari' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDateFilter('hari_ini');
+                    setDateFilterSheetOpen(false);
+                  }}
+                  style={{
+                    padding: '12px 8px',
+                    borderRadius: '10px',
+                    border: dateFilter === 'hari_ini' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                    background: dateFilter === 'hari_ini' ? '#ecfdf5' : 'var(--color-bg-card)',
+                    color: dateFilter === 'hari_ini' ? 'var(--color-primary-dark)' : 'var(--color-text-main)',
+                    fontSize: '12.5px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <span>⚡ Hari Ini (Default)</span>
+                  {dateFilter === 'hari_ini' && <span style={{ color: 'var(--color-primary)' }}>✓</span>}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDateFilter('kemarin');
+                    setDateFilterSheetOpen(false);
+                  }}
+                  style={{
+                    padding: '12px 8px',
+                    borderRadius: '10px',
+                    border: dateFilter === 'kemarin' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                    background: dateFilter === 'kemarin' ? '#ecfdf5' : 'var(--color-bg-card)',
+                    color: dateFilter === 'kemarin' ? 'var(--color-primary-dark)' : 'var(--color-text-main)',
+                    fontSize: '12.5px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <span>📆 Kemarin</span>
+                  {dateFilter === 'kemarin' && <span style={{ color: 'var(--color-primary)' }}>✓</span>}
+                </button>
+              </div>
+
+              {/* Input Tanggal Kalender (Pilih Tgl, Bln, Thn) */}
+              <div
+                style={{
+                  background: 'var(--color-bg-card)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: '12px',
+                  padding: '12px',
+                }}
+              >
+                <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '800', color: 'var(--color-text-muted)', marginBottom: '6px' }}>
+                  Atau Pilih Tanggal Spesifik (Tgl, Bln, Thn):
+                </label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="date"
+                    value={tempCustomDate}
+                    onChange={(e) => setTempCustomDate(e.target.value)}
+                    style={{
+                      flex: 1,
+                      height: '42px',
+                      padding: '0 12px',
+                      borderRadius: '8px',
+                      border: '1.5px solid var(--color-border)',
+                      background: 'var(--color-bg-input)',
+                      color: 'var(--color-text-main)',
+                      fontSize: '13px',
+                      fontWeight: '700',
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (tempCustomDate) {
+                        setDateFilter(`hari:${tempCustomDate}`);
+                        setDateFilterSheetOpen(false);
+                      }
+                    }}
+                    style={{ height: '42px', padding: '0 14px', fontSize: '12.5px', whiteSpace: 'nowrap' }}
+                  >
+                    Terapkan
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Mode Tab 2: Bulan (Pilih Bulan dan Tahun) */}
+          {tempDateMode === 'bulan' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div
+                style={{
+                  background: 'var(--color-bg-card)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: '12px',
+                  padding: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '8px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '800', color: 'var(--color-text-muted)', marginBottom: '5px' }}>
+                      Pilih Bulan:
+                    </label>
+                    <select
+                      value={tempMonth}
+                      onChange={(e) => setTempMonth(parseInt(e.target.value))}
+                      style={{
+                        width: '100%',
+                        height: '42px',
+                        padding: '0 10px',
+                        borderRadius: '8px',
+                        border: '1.5px solid var(--color-border)',
+                        background: 'var(--color-bg-input)',
+                        color: 'var(--color-text-main)',
+                        fontSize: '13px',
+                        fontWeight: '700',
+                      }}
+                    >
+                      {NAMA_BULAN.map((nama, idx) => (
+                        <option key={idx + 1} value={idx + 1}>
+                          {nama}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '800', color: 'var(--color-text-muted)', marginBottom: '5px' }}>
+                      Pilih Tahun:
+                    </label>
+                    <select
+                      value={tempYear}
+                      onChange={(e) => setTempYear(parseInt(e.target.value))}
+                      style={{
+                        width: '100%',
+                        height: '42px',
+                        padding: '0 10px',
+                        borderRadius: '8px',
+                        border: '1.5px solid var(--color-border)',
+                        background: 'var(--color-bg-input)',
+                        color: 'var(--color-text-main)',
+                        fontSize: '13px',
+                        fontWeight: '700',
+                      }}
+                    >
+                      {[2024, 2025, 2026, 2027, 2028].map((y) => (
+                        <option key={y} value={y}>
+                          {y}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  onClick={() => {
+                    const mPad = String(tempMonth).padStart(2, '0');
+                    setDateFilter(`bulan:${tempYear}-${mPad}`);
+                    setDateFilterSheetOpen(false);
+                  }}
+                  style={{ width: '100%', height: '42px', fontSize: '13px', fontWeight: '800' }}
+                >
+                  🗓️ Terapkan Periode Bulanan
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Mode Tab 3: Tahun (Pilih Tahun) */}
+          {tempDateMode === 'tahun' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div
+                style={{
+                  background: 'var(--color-bg-card)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: '12px',
+                  padding: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
+                <div>
+                  <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '800', color: 'var(--color-text-muted)', marginBottom: '5px' }}>
+                    Pilih Tahun:
+                  </label>
+                  <select
+                    value={tempYear}
+                    onChange={(e) => setTempYear(parseInt(e.target.value))}
+                    style={{
+                      width: '100%',
+                      height: '42px',
+                      padding: '0 12px',
+                      borderRadius: '8px',
+                      border: '1.5px solid var(--color-border)',
+                      background: 'var(--color-bg-input)',
+                      color: 'var(--color-text-main)',
+                      fontSize: '13.5px',
+                      fontWeight: '700',
+                    }}
+                  >
+                    {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map((y) => (
+                      <option key={y} value={y}>
+                        Tahun {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setDateFilter(`tahun:${tempYear}`);
+                    setDateFilterSheetOpen(false);
+                  }}
+                  style={{ width: '100%', height: '42px', fontSize: '13px', fontWeight: '800' }}
+                >
+                  📊 Terapkan Periode Tahunan
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Mode Tab 4: Semua Waktu */}
+          {tempDateMode === 'semua' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <Button
+                type="button"
+                onClick={() => {
+                  setDateFilter('semua');
+                  setDateFilterSheetOpen(false);
+                }}
+                style={{ width: '100%', height: '44px', fontSize: '13px', fontWeight: '800' }}
+              >
+                🌐 Tampilkan Riwayat Semua Waktu
+              </Button>
+            </div>
+          )}
+        </div>
+      </BottomSheet>
+
+      {/* Bottom Sheet Filter Wilayah Desa Pelosok */}
+      <BottomSheet
+        isOpen={desaFilterSheetOpen}
+        onClose={() => setDesaFilterSheetOpen(false)}
+        title="🏡 Filter Berdasarkan Wilayah Desa"
+      >
+        <div style={{ padding: '8px 0 18px 0', display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '60vh', overflowY: 'auto' }}>
+          {/* Opsi Semua Desa */}
+          <button
+            type="button"
+            onClick={() => {
+              setDesaFilter('semua');
+              setDesaFilterSheetOpen(false);
+            }}
+            style={{
+              width: '100%',
+              padding: '12px 14px',
+              borderRadius: '10px',
+              border: desaFilter === 'semua' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+              background: desaFilter === 'semua' ? '#ecfdf5' : 'var(--color-bg-card)',
+              color: desaFilter === 'semua' ? 'var(--color-primary-dark)' : 'var(--color-text-main)',
+              fontSize: '13px',
+              fontWeight: desaFilter === 'semua' ? '800' : '600',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '16px' }}>🌐</span>
+              <span>Semua Desa (Seluruh Wilayah)</span>
+            </span>
+            {desaFilter === 'semua' && <span style={{ color: 'var(--color-primary)', fontWeight: '900' }}>✓</span>}
+          </button>
+
+          {/* 11 Desa Naringgul */}
+          {NARINGGUL_VILLAGES.map((desaNama) => {
+            const isSelected = desaFilter.toLowerCase() === desaNama.toLowerCase();
+            const count = orders.filter((o) => {
+              const target = desaNama.toLowerCase();
+              return (
+                (o.alamat_tujuan || '').toLowerCase().includes(target) ||
+                (o.customer?.alamat || '').toLowerCase().includes(target) ||
+                (o.deskripsi_barang || '').toLowerCase().includes(target)
+              );
+            }).length;
+
+            return (
+              <button
+                key={desaNama}
+                type="button"
+                onClick={() => {
+                  setDesaFilter(desaNama);
+                  setDesaFilterSheetOpen(false);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px 14px',
+                  borderRadius: '10px',
+                  border: isSelected ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                  background: isSelected ? '#ecfdf5' : 'var(--color-bg-card)',
+                  color: isSelected ? 'var(--color-primary-dark)' : 'var(--color-text-main)',
+                  fontSize: '13px',
+                  fontWeight: isSelected ? '800' : '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  cursor: 'pointer',
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '16px' }}>🏡</span>
+                  <span>Desa {desaNama}</span>
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {count > 0 && (
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        background: isSelected ? 'var(--color-primary)' : 'var(--color-bg-input)',
+                        color: isSelected ? '#ffffff' : 'var(--color-text-muted)',
+                        padding: '2px 8px',
+                        borderRadius: '10px',
+                        fontWeight: '700',
+                      }}
+                    >
+                      {count} paket
+                    </span>
+                  )}
+                  {isSelected && <span style={{ color: 'var(--color-primary)', fontWeight: '900' }}>✓</span>}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </BottomSheet>
 
