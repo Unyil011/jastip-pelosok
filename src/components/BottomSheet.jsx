@@ -29,7 +29,7 @@ export default function BottomSheet({
         left: 0,
         right: 0,
         bottom: 0,
-        zIndex: 9999,
+        zIndex: 10000,
         display: 'flex',
         alignItems: 'flex-end',
         justifyContent: 'center',

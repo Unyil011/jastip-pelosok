@@ -1729,41 +1729,29 @@ export default function DashboardKurir() {
                   Ringkasan Antaran & Kas
                 </h3>
               </div>
-
-              {/* Toggle Filter Waktu */}
-              <div
+              {/* Tombol Pemicu BottomSheet Filter Periode Waktu */}
+              <button
+                type="button"
+                onClick={() => setDateFilterSheetOpen(true)}
                 style={{
-                  display: 'flex',
                   background: 'var(--color-bg-input)',
-                  padding: '3px',
-                  borderRadius: '999px',
-                  border: '1px solid var(--color-border)',
+                  border: '1.5px solid var(--color-border)',
+                  borderRadius: '20px',
+                  padding: '5px 12px',
+                  fontSize: '11.5px',
+                  fontWeight: '700',
+                  color: 'var(--color-text-main)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  boxShadow: 'var(--skeuo-button-raised)',
                 }}
               >
-                {[
-                  { id: 'hari_ini', label: 'Hari Ini' },
-                  { id: 'kemarin', label: 'Kemarin' },
-                  { id: 'semua', label: 'Semua' },
-                ].map((btn) => (
-                  <button
-                    key={btn.id}
-                    onClick={() => setDateFilter(btn.id)}
-                    style={{
-                      background: dateFilter === btn.id ? 'var(--color-primary)' : 'transparent',
-                      color: dateFilter === btn.id ? '#ffffff' : 'var(--color-text-muted)',
-                      border: 'none',
-                      borderRadius: '999px',
-                      padding: '4px 10px',
-                      fontSize: '11px',
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    {btn.label}
-                  </button>
-                ))}
-              </div>
+                <span>📅</span>
+                <span>{getDateFilterLabel(dateFilter)}</span>
+                <span style={{ fontSize: '10px', opacity: 0.6 }}>▾</span>
+              </button>
             </div>
 
             {/* 4 Kotak Metrik Ringkasan */}
@@ -2185,40 +2173,29 @@ export default function DashboardKurir() {
                 Rekonsiliasi ongkir kurir dan titipan COD barang
               </div>
             </div>
-
-            {/* Toggle Filter Waktu */}
-            <div
-              style={{
-                display: 'flex',
-                background: 'var(--color-bg-input)',
-                padding: '3px',
-                borderRadius: '999px',
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              {[
-                { id: 'hari_ini', label: 'Hari Ini' },
-                { id: 'kemarin', label: 'Kemarin' },
-                { id: 'semua', label: 'Semua' },
-              ].map((btn) => (
-                <button
-                  key={btn.id}
-                  onClick={() => setDateFilter(btn.id)}
-                  style={{
-                    background: dateFilter === btn.id ? 'var(--color-primary)' : 'transparent',
-                    color: dateFilter === btn.id ? '#ffffff' : 'var(--color-text-muted)',
-                    border: 'none',
-                    borderRadius: '999px',
-                    padding: '4px 10px',
-                    fontSize: '11px',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {btn.label}
-                </button>
-              ))}
-            </div>
+              {/* Tombol Pemicu BottomSheet Filter Periode Waktu */}
+              <button
+                type="button"
+                onClick={() => setDateFilterSheetOpen(true)}
+                style={{
+                  background: 'var(--color-bg-input)',
+                  border: '1.5px solid var(--color-border)',
+                  borderRadius: '20px',
+                  padding: '5px 12px',
+                  fontSize: '11.5px',
+                  fontWeight: '700',
+                  color: 'var(--color-text-main)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  boxShadow: 'var(--skeuo-button-raised)',
+                }}
+              >
+                <span>📅</span>
+                <span>{getDateFilterLabel(dateFilter)}</span>
+                <span style={{ fontSize: '10px', opacity: 0.6 }}>▾</span>
+              </button>
           </div>
 
           {/* 3 Kotak Finansial Besar */}
