@@ -1697,66 +1697,6 @@ export default function DashboardKurir() {
             <span>{trackingGps ? '🟢' : '📍'}</span>
             <span>{trackingGps ? 'GPS ON' : 'GPS'}</span>
           </button>
-
-          {/* Avatar Profil Kurir -> Klik Buka Sidebar Profil */}
-          <button
-            onClick={() => setSidebarOpen(true)}
-            title="Buka Menu Akun & Profil Kurir"
-            style={{
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              cursor: 'pointer',
-              position: 'relative',
-            }}
-          >
-            {profile?.foto_url ? (
-              <img
-                src={profile.foto_url}
-                alt={profile?.nama || 'Profil'}
-                style={{
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  border: '2px solid var(--color-primary)',
-                  boxShadow: 'var(--skeuo-button-raised)',
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary) 100%)',
-                  color: '#ffffff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '14px',
-                  fontWeight: '800',
-                  boxShadow: 'var(--skeuo-button-raised)',
-                  border: '2px solid rgba(255,255,255,0.6)',
-                }}
-              >
-                {profile?.nama ? profile.nama.charAt(0).toUpperCase() : '🛵'}
-              </div>
-            )}
-            {/* Dot Status Hijau */}
-            <span
-              style={{
-                position: 'absolute',
-                bottom: '0',
-                right: '0',
-                width: '9px',
-                height: '9px',
-                borderRadius: '50%',
-                background: '#22c55e',
-                border: '2px solid var(--color-bg-base)',
-              }}
-            />
-          </button>
         </div>
       </div>
 
@@ -4211,7 +4151,7 @@ export default function DashboardKurir() {
       </BottomSheet>
 
       {/* Bottom Nav */}
-      <BottomNav role="kurir" />
+      <BottomNav role="kurir" onOpenProfile={() => setSidebarOpen(true)} isProfileOpen={sidebarOpen} />
     </div>
   );
 }

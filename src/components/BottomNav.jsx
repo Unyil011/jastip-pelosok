@@ -1,7 +1,7 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-export default function BottomNav({ role = 'customer' }) {
+export default function BottomNav({ role = 'customer', onOpenProfile, isProfileOpen = false }) {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -57,6 +57,12 @@ export default function BottomNav({ role = 'customer' }) {
           label: 'Keuangan',
           path: '/dashboard-kurir?tab=keuangan',
           icon: '💰',
+        },
+        {
+          id: 'profil',
+          label: 'Profil',
+          path: '/dashboard-kurir?tab=profil',
+          icon: '👤',
         },
       ];
     }
@@ -124,6 +130,8 @@ export default function BottomNav({ role = 'customer' }) {
             isActive =
               location.search.includes('tab=keuangan') ||
               location.search.includes('tab=selesai');
+          } else if (tab.id === 'profil') {
+            isActive = Boolean(isProfileOpen) || location.search.includes('tab=profil');
           }
         } else if (tab.id === 'home' && location.pathname === '/dashboard-customer') {
           isActive = true;
@@ -163,7 +171,13 @@ export default function BottomNav({ role = 'customer' }) {
         return (
           <button
             key={tab.id}
-            onClick={() => navigate(tab.path)}
+            onClick={() => {
+              if (tab.id === 'profil' && onOpenProfile) {
+                onOpenProfile();
+                return;
+              }
+              navigate(tab.path);
+            }}
             style={{
               flex: 1,
               height: '100%',
