@@ -34,10 +34,16 @@ export default function BottomNav({ role = 'customer' }) {
     if (role === 'kurir') {
       return [
         {
-          id: 'antar',
-          label: 'Antaran',
-          path: '/dashboard-kurir?tab=antaran',
-          icon: '🛵',
+          id: 'beranda',
+          label: 'Beranda',
+          path: '/dashboard-kurir?tab=beranda',
+          icon: '🏠',
+        },
+        {
+          id: 'pesanan',
+          label: 'Pesanan',
+          path: '/dashboard-kurir?tab=pesanan',
+          icon: '📦',
         },
         {
           id: 'scan',
@@ -47,10 +53,10 @@ export default function BottomNav({ role = 'customer' }) {
           highlight: true,
         },
         {
-          id: 'riwayat-kurir',
-          label: 'Selesai',
-          path: '/dashboard-kurir?tab=selesai',
-          icon: '✅',
+          id: 'keuangan',
+          label: 'Keuangan',
+          path: '/dashboard-kurir?tab=keuangan',
+          icon: '💰',
         },
       ];
     }
@@ -104,12 +110,20 @@ export default function BottomNav({ role = 'customer' }) {
       {tabs.map((tab) => {
         let isActive = location.pathname + location.search === tab.path;
         if (role === 'kurir') {
-          if (tab.id === 'antar') {
-            isActive = location.pathname === '/dashboard-kurir' && (!location.search || location.search.includes('tab=antaran'));
+          if (tab.id === 'beranda') {
+            isActive =
+              location.pathname === '/dashboard-kurir' &&
+              (!location.search || location.search.includes('tab=beranda'));
+          } else if (tab.id === 'pesanan') {
+            isActive =
+              location.search.includes('tab=pesanan') ||
+              location.search.includes('tab=antaran');
           } else if (tab.id === 'scan') {
             isActive = location.search.includes('tab=scan');
-          } else if (tab.id === 'riwayat-kurir') {
-            isActive = location.search.includes('tab=selesai') || location.search.includes('status=terkirim');
+          } else if (tab.id === 'keuangan') {
+            isActive =
+              location.search.includes('tab=keuangan') ||
+              location.search.includes('tab=selesai');
           }
         } else if (tab.id === 'home' && location.pathname === '/dashboard-customer') {
           isActive = true;
