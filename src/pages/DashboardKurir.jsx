@@ -60,24 +60,61 @@ export default function DashboardKurir() {
     }
   }, [activeTab]);
 
-  // State Modal BottomSheet Filter Waktu
-  // State Modal BottomSheet Filter Terpadu (1 Icon Saja di Dashboard)
+  // ==========================================
+  // STATE FILTER & PENCARIAN (PERSISTENSI LOCALSTORAGE)
+  // ==========================================
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+
+  const [serviceFilter, setServiceFilter] = useState(() => {
+    return localStorage.getItem('kurir_service_filter') || 'semua';
+  });
   const [desaFilter, setDesaFilter] = useState(() => {
     return localStorage.getItem('kurir_desa_filter') || 'semua';
   });
+  const [dateFilter, setDateFilter] = useState(() => {
+    return localStorage.getItem('kurir_date_filter') || 'hari_ini';
+  });
+  const [statusFilter, setStatusFilter] = useState(() => {
+    return localStorage.getItem('kurir_status_filter') || 'semua';
+  });
+  const [searchQuery, setSearchQuery] = useState(() => {
+    return sessionStorage.getItem('kurir_search_query') || '';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('kurir_service_filter', serviceFilter);
+  }, [serviceFilter]);
 
   useEffect(() => {
     localStorage.setItem('kurir_desa_filter', desaFilter);
   }, [desaFilter]);
 
+  useEffect(() => {
+    localStorage.setItem('kurir_date_filter', dateFilter);
+  }, [dateFilter]);
+
+  useEffect(() => {
+    localStorage.setItem('kurir_status_filter', statusFilter);
+  }, [statusFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem('kurir_search_query', searchQuery);
+  }, [searchQuery]);
+
   // State Kontrol Dialog Filter Tanggal Interaktif (Harian, Bulanan, Tahunan)
+  const [tempDateMode, setTempDateMode] = useState('hari');
+  const [tempCustomDate, setTempCustomDate] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+  const [tempMonth, setTempMonth] = useState(() => new Date().getMonth() + 1);
+  const [tempYear, setTempYear] = useState(() => new Date().getFullYear());
+
   // Cek apakah ada filter non-default yang aktif (untuk indikator titik merah pada icon filter)
   const isFilterActive = useMemo(() => {
-    const isDateActive = dateFilter && dateFilter !== 'hari_ini';
-    const isDesaActive = desaFilter && desaFilter !== 'semua';
-    const isServiceActive = serviceFilter && serviceFilter !== 'semua';
-    return Boolean(isDateActive || isDesaActive || isServiceActive);
+    const isDateActive = Boolean(dateFilter && dateFilter !== 'hari_ini');
+    const isDesaActive = Boolean(desaFilter && desaFilter !== 'semua');
+    const isServiceActive = Boolean(serviceFilter && serviceFilter !== 'semua');
+    return isDateActive || isDesaActive || isServiceActive;
   }, [dateFilter, desaFilter, serviceFilter]);
 
   // Reset semua filter ke default (Hari Ini, Semua Desa, Semua Layanan)
@@ -90,16 +127,6 @@ export default function DashboardKurir() {
     localStorage.setItem('kurir_desa_filter', 'semua');
     localStorage.setItem('kurir_service_filter', 'semua');
   };
-
-  const [tempDateMode, setTempDateMode] = useState('hari'); // 'hari' | 'bulan' | 'tahun' | 'semua'
-  const [tempCustomDate, setTempCustomDate] = useState(() => {
-    return new Date().toISOString().split('T')[0];
-  });
-  const [tempMonth, setTempMonth] = useState(() => new Date().getMonth() + 1);
-  const [tempYear, setTempYear] = useState(() => new Date().getFullYear());
-
-  // State Filter Jenis Layanan: 'semua' | 'paket' | 'jastip'
-  const [serviceFilter, setServiceFilter] = useState('semua');
 
   // Scanner Kurir State (Barcode Kamera HP & Input Manual Resi)
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -289,32 +316,7 @@ export default function DashboardKurir() {
     return `Halo Kak ${customerName} 👋\n${kurirName} sedang dalam perjalanan mengantar paket ke alamat Anda.\n\n📦 ${barang}\n🔖 ${resi}\n📍 Alamat: ${alamat}\n\n${paymentText}\n\nMohon pastikan ada orang di rumah ya Kak. Terima kasih! 🙏`;
   };
 
-  // Filter & Pencarian dengan Persistence di localStorage
-  const [dateFilter, setDateFilter] = useState(() => {
-    return localStorage.getItem('kurir_date_filter') || 'hari_ini';
-  });
-  const [statusFilter, setStatusFilter] = useState(() => {
-    return localStorage.getItem('kurir_status_filter') || 'semua';
-  });
-  const [searchQuery, setSearchQuery] = useState(() => {
-    return sessionStorage.getItem('kurir_search_query') || '';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('kurir_date_filter', dateFilter);
-  }, [dateFilter]);
-
-  useEffect(() => {
-    localStorage.setItem('kurir_status_filter', statusFilter);
-  }, [statusFilter]);
-
-  useEffect(() => {
-    localStorage.setItem('kurir_service_filter', serviceFilter);
-  }, [serviceFilter]);
-
-  useEffect(() => {
-    sessionStorage.setItem('kurir_search_query', searchQuery);
-  }, [searchQuery]);
+// (State filter dipusatkan di atas)
 
   // BottomSheet State untuk aksi status
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -2344,28 +2346,56 @@ export default function DashboardKurir() {
                 Rekonsiliasi ongkir kurir dan titipan COD barang
               </div>
             </div>
-              {/* Tombol Pemicu BottomSheet Filter Periode Waktu */}
+              {/* 1 ICON FILTER TUNGGAL DENGAN INDIKATOR TITIK MERAH DI KEUANGAN */}
               <button
                 type="button"
-                onClick={() => setDateFilterSheetOpen(true)}
+                onClick={() => setFilterSheetOpen(true)}
+                title="Buka Filter Keuangan"
                 style={{
-                  background: 'var(--color-bg-input)',
-                  border: '1.5px solid var(--color-border)',
-                  borderRadius: '20px',
-                  padding: '5px 12px',
-                  fontSize: '11.5px',
-                  fontWeight: '700',
-                  color: 'var(--color-text-main)',
-                  cursor: 'pointer',
+                  position: 'relative',
+                  background: isFilterActive ? '#ecfdf5' : 'var(--color-bg-input)',
+                  border: isFilterActive ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
+                  borderRadius: '10px',
+                  width: '36px',
+                  height: '36px',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '5px',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
                   boxShadow: 'var(--skeuo-button-raised)',
+                  transition: 'all 0.15s ease',
+                  padding: 0,
                 }}
               >
-                <span>📅</span>
-                <span>{getDateFilterLabel(dateFilter)}</span>
-                <span style={{ fontSize: '10px', opacity: 0.6 }}>▾</span>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={isFilterActive ? 'var(--color-primary)' : 'var(--color-text-main)'}
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                </svg>
+
+                {/* Titik Merah Indikator Filter Aktif */}
+                {isFilterActive && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: '4px',
+                      right: '4px',
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      background: '#ef4444',
+                      border: '1.5px solid #ffffff',
+                      boxShadow: '0 0 4px rgba(239, 68, 68, 0.7)',
+                    }}
+                  />
+                )}
               </button>
           </div>
 
