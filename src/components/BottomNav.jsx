@@ -103,7 +103,7 @@ export default function BottomNav({ role = 'customer' }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-around',
-        zIndex: 100,
+        zIndex: 9999,
         padding: '0 8px',
       }}
     >

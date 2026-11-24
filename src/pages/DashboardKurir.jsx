@@ -39,35 +39,29 @@ export default function DashboardKurir() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // State Tab Halaman Kurir: 'beranda' | 'pesanan' | 'keuangan'
+  // State Tab Halaman Kurir dengan Persistence di localStorage
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const p = new URLSearchParams(window.location.search).get('tab');
       if (p === 'pesanan' || p === 'antaran') return 'pesanan';
       if (p === 'keuangan' || p === 'selesai') return 'keuangan';
+      if (p === 'beranda') return 'beranda';
+      const saved = localStorage.getItem('kurir_active_tab');
+      if (saved && ['beranda', 'pesanan', 'keuangan'].includes(saved)) return saved;
     } catch (e) {
       console.error(e);
     }
     return 'beranda';
   });
 
-  // State Ketersediaan Kurir (Online / Offline)
-  const [isOnline, setIsOnline] = useState(() => {
-    return localStorage.getItem('kurir_online_status') !== 'false';
-  });
+  useEffect(() => {
+    if (activeTab) {
+      localStorage.setItem('kurir_active_tab', activeTab);
+    }
+  }, [activeTab]);
 
-  const toggleOnlineStatus = () => {
-    const next = !isOnline;
-    setIsOnline(next);
-    localStorage.setItem('kurir_online_status', String(next));
-    setFeedbackSheet({
-      open: true,
-      title: next ? 'Status: Siap Antar (Online) 🟢' : 'Status: Istirahat (Offline) 🔴',
-      message: next
-        ? 'Status Anda aktif menerima & menjalankan tugas antaran paket.'
-        : 'Status Anda disetel sedang istirahat.',
-    });
-  };
+  // State Modal BottomSheet Filter Waktu
+  const [dateFilterSheetOpen, setDateFilterSheetOpen] = useState(false);
 
   // State Filter Jenis Layanan: 'semua' | 'paket' | 'jastip'
   const [serviceFilter, setServiceFilter] = useState('semua');
@@ -260,25 +254,28 @@ export default function DashboardKurir() {
     return `Halo Kak ${customerName} 👋\n${kurirName} sedang dalam perjalanan mengantar paket ke alamat Anda.\n\n📦 ${barang}\n🔖 ${resi}\n📍 Alamat: ${alamat}\n\n${paymentText}\n\nMohon pastikan ada orang di rumah ya Kak. Terima kasih! 🙏`;
   };
 
-  // Filter & Pencarian dengan Persistence (Posisi tetap sama setelah refresh)
+  // Filter & Pencarian dengan Persistence di localStorage
   const [dateFilter, setDateFilter] = useState(() => {
-    return sessionStorage.getItem('kurir_date_filter') || 'hari_ini';
+    return localStorage.getItem('kurir_date_filter') || 'hari_ini';
   });
   const [statusFilter, setStatusFilter] = useState(() => {
-    return sessionStorage.getItem('kurir_status_filter') || 'semua';
+    return localStorage.getItem('kurir_status_filter') || 'semua';
   });
   const [searchQuery, setSearchQuery] = useState(() => {
     return sessionStorage.getItem('kurir_search_query') || '';
   });
 
-  // Simpan otomatis filter kurir ke sessionStorage
   useEffect(() => {
-    sessionStorage.setItem('kurir_date_filter', dateFilter);
+    localStorage.setItem('kurir_date_filter', dateFilter);
   }, [dateFilter]);
 
   useEffect(() => {
-    sessionStorage.setItem('kurir_status_filter', statusFilter);
+    localStorage.setItem('kurir_status_filter', statusFilter);
   }, [statusFilter]);
+
+  useEffect(() => {
+    localStorage.setItem('kurir_service_filter', serviceFilter);
+  }, [serviceFilter]);
 
   useEffect(() => {
     sessionStorage.setItem('kurir_search_query', searchQuery);
@@ -684,14 +681,40 @@ export default function DashboardKurir() {
   };
 
   // Filter Data berdasarkan Tanggal (Hari Ini, Kemarin, Semua)
+  // Helper Label Filter Tanggal
+  const getDateFilterLabel = (filter) => {
+    switch (filter) {
+      case 'kemarin': return 'Kemarin';
+      case 'bulan_ini': return 'Bulan Ini (Bulanan)';
+      case 'tahun_ini': return 'Tahun Ini (Tahunan)';
+      case 'semua': return 'Semua Waktu';
+      case 'hari_ini':
+      default:
+        return 'Hari Ini';
+    }
+  };
+
+  // Filter Data berdasarkan Tanggal (Hari Ini, Kemarin, Bulanan, Tahunan, Semua)
   const ordersInDateRange = useMemo(() => {
     return orders.filter((order) => {
       const timestamp = order.updated_at || order.created_at;
+      if (!timestamp) return true;
+
       if (dateFilter === 'hari_ini') {
         return isDateToday(timestamp) || isDateToday(order.created_at);
       }
       if (dateFilter === 'kemarin') {
         return isDateYesterday(timestamp) || isDateYesterday(order.created_at);
+      }
+      if (dateFilter === 'bulan_ini') {
+        const d = new Date(timestamp);
+        const now = new Date();
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      }
+      if (dateFilter === 'tahun_ini') {
+        const d = new Date(timestamp);
+        const now = new Date();
+        return d.getFullYear() === now.getFullYear();
       }
       return true;
     });
@@ -1432,7 +1455,7 @@ export default function DashboardKurir() {
   };
 
   return (
-    <div className="app-container" style={{ paddingBottom: '90px' }}>
+    <div className="app-container" style={{ paddingBottom: '120px' }}>
       {/* 1. Header Minimalis & Clean ala Customer */}
       <div
         style={{
@@ -1486,30 +1509,8 @@ export default function DashboardKurir() {
           </div>
         </div>
 
-        {/* Action Buttons Kanan: Online/Offline Toggle + GPS Tracker + Refresh + Avatar Profil */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          {/* Toggle Online/Offline Ketersediaan Kerja */}
-          <button
-            onClick={toggleOnlineStatus}
-            title={isOnline ? 'Kurir Siap Antar (Online). Klik untuk istirahat.' : 'Kurir Istirahat (Offline). Klik untuk siap antar.'}
-            style={{
-              background: isOnline ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-              border: isOnline ? '1.5px solid #22c55e' : '1.5px solid #ef4444',
-              borderRadius: '20px',
-              color: isOnline ? '#15803d' : '#b91c1c',
-              padding: '5px 9px',
-              fontSize: '11px',
-              fontWeight: '800',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}
-          >
-            <span>{isOnline ? '🟢' : '🔴'}</span>
-            <span>{isOnline ? 'Online' : 'Offline'}</span>
-          </button>
-
+        {/* Action Buttons Kanan: GPS Tracker + Avatar Profil */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {/* Toggle GPS */}
           <button
             onClick={toggleGpsTracking}
@@ -1519,37 +1520,17 @@ export default function DashboardKurir() {
               border: trackingGps ? '1.5px solid #22c55e' : '1px solid var(--color-border)',
               borderRadius: '20px',
               color: trackingGps ? '#15803d' : 'var(--color-text-muted)',
-              padding: '5px 9px',
-              fontSize: '11px',
+              padding: '6px 12px',
+              fontSize: '11.5px',
               fontWeight: '800',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '4px',
+              gap: '5px',
             }}
           >
             <span>{trackingGps ? '🟢' : '📍'}</span>
             <span>{trackingGps ? 'GPS ON' : 'GPS'}</span>
-          </button>
-
-          <button
-            onClick={loadKurirOrders}
-            title="Muat ulang data order"
-            style={{
-              background: 'var(--color-bg-card)',
-              border: '1px solid var(--color-border)',
-              borderRadius: '50%',
-              width: '34px',
-              height: '34px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '13px',
-              cursor: 'pointer',
-              color: 'var(--color-text-main)',
-            }}
-          >
-            🔄
           </button>
 
           {/* Avatar Profil Kurir -> Klik Buka Sidebar Profil */}
@@ -2370,6 +2351,53 @@ export default function DashboardKurir() {
         </div>
       )}
 
+      {/* Bottom Sheet Filter Periode Waktu */}
+      <BottomSheet
+        isOpen={dateFilterSheetOpen}
+        onClose={() => setDateFilterSheetOpen(false)}
+        title="📅 Pilih Periode Waktu"
+      >
+        <div style={{ padding: '8px 0 16px 0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {[
+            { id: 'hari_ini', label: 'Hari Ini (Default)', icon: '⚡' },
+            { id: 'kemarin', label: 'Kemarin', icon: '📆' },
+            { id: 'bulan_ini', label: 'Bulan Ini (Bulanan)', icon: '🗓️' },
+            { id: 'tahun_ini', label: 'Tahun Ini (Tahunan)', icon: '📊' },
+            { id: 'semua', label: 'Semua Waktu', icon: '🌐' },
+          ].map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => {
+                setDateFilter(opt.id);
+                localStorage.setItem('kurir_date_filter', opt.id);
+                setDateFilterSheetOpen(false);
+              }}
+              style={{
+                width: '100%',
+                padding: '12px 14px',
+                borderRadius: '10px',
+                border: dateFilter === opt.id ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                background: dateFilter === opt.id ? '#ecfdf5' : 'var(--color-bg-card)',
+                color: dateFilter === opt.id ? 'var(--color-primary-dark)' : 'var(--color-text-main)',
+                fontSize: '13px',
+                fontWeight: dateFilter === opt.id ? '800' : '600',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer',
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '16px' }}>{opt.icon}</span>
+                <span>{opt.label}</span>
+              </span>
+              {dateFilter === opt.id && <span style={{ color: 'var(--color-primary)', fontWeight: '900' }}>✓</span>}
+            </button>
+          ))}
+        </div>
+      </BottomSheet>
+
       {/* Confirmation Sheet Mulai Antar */}
       <ConfirmationSheet
         isOpen={confirmMulaiSheet}
@@ -2761,8 +2789,8 @@ export default function DashboardKurir() {
             </div>
           </div>
 
-          {/* Input Manual Nomor Resi (Alternatif Rapi & Proporsional) */}
-          <div style={{ marginTop: '4px' }}>
+          {/* Input Manual Nomor Resi (Besar, Rapi, & Proporsional) */}
+          <div style={{ marginTop: '8px' }}>
             <label
               style={{
                 display: 'block',
@@ -2779,32 +2807,33 @@ export default function DashboardKurir() {
                 e.preventDefault();
                 handleProcessKurirScan(scannedResiInput);
               }}
-              style={{ display: 'flex', gap: '8px', width: '100%' }}
+              style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}
             >
               <input
                 type="text"
-                placeholder="Contoh: SPXID..., JP123..."
+                placeholder="Ketik nomor resi (contoh: SPXID..., JP123...)"
                 value={scannedResiInput}
                 onChange={(e) => setScannedResiInput(e.target.value)}
                 style={{
-                  flex: 1,
-                  height: '42px',
-                  padding: '0 12px',
-                  borderRadius: 'var(--radius-sm)',
-                  border: '1px solid var(--color-border)',
+                  width: '100%',
+                  height: '44px',
+                  padding: '0 14px',
+                  borderRadius: '8px',
+                  border: '1.5px solid var(--color-border)',
                   background: 'var(--color-bg-input)',
                   color: 'var(--color-text-main)',
-                  fontSize: '13px',
+                  fontSize: '13.5px',
+                  fontWeight: '600',
                   outline: 'none',
-                  minWidth: 0,
+                  boxSizing: 'border-box',
                 }}
               />
               <Button
                 type="submit"
                 loading={scanStatus === 'loading'}
-                style={{ height: '42px', padding: '0 18px', whiteSpace: 'nowrap' }}
+                style={{ width: '100%', height: '42px', fontSize: '13px', fontWeight: '800' }}
               >
-                Cari Resi
+                🔍 Cari Resi Paket
               </Button>
             </form>
           </div>
